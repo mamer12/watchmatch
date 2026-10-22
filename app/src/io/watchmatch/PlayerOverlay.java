@@ -477,7 +477,7 @@ final class PlayerOverlay extends View {
         k = w / 1920f;
         titleFont = Ui.text(Ui.displaySemibold, 44 * k, 0xFFFFFFFF);
         bigFont = Ui.text(Ui.displaySemibold, 76 * k, 0xFFFFFFFF);
-        percentFont = Ui.text(Ui.displaySemibold, 52 * k, 0xFFFFFFFF);
+        percentFont = Ui.text(Ui.displaySemibold, 34 * k, 0xFFFFFFFF);
         percentFont.setTextAlign(Paint.Align.CENTER);
         percentFont.setFontFeatureSettings("tnum");
         metaFont = Ui.text(Ui.medium, 28 * k, 0xCCFFFFFF);
@@ -534,13 +534,16 @@ final class PlayerOverlay extends View {
         else if (renderedAt == 0) renderedAt = up;
         float art = renderedAt == 0 ? 1 : 1 - Ui.clamp((up - renderedAt) / (float) ART_FADE_MS);
         boolean animating = art > 0;
-        if (art > 0 && message == null) drawLoadingArt(c, art);
-        float a = controlsAlpha(up);
+        // Before the first picture the screen is plain black with the spinner, like Netflix: no art, no controls.
+        boolean firstLoad = !player.rendered() && message == null && panel == P_NONE;
+        if (firstLoad) c.drawColor(0xFF000000);
+        else if (art > 0 && message == null) drawLoadingArt(c, art);
+        float a = firstLoad ? 0 : controlsAlpha(up);
         animating |= a > 0 && a < 1;
         boolean pauseInfo = pausedAt != 0 && up - pausedAt > PAUSE_INFO_MS && panel == P_NONE && message == null && !loading;
         if (pauseInfo) drawPauseInfo(c);
         else if (a > 0) drawControls(c, a);
-        if (!pauseInfo) drawSubtitle(c, a);
+        if (!pauseInfo && !firstLoad) drawSubtitle(c, a);
         if (panel != P_NONE) drawPanel(c);
         if (!loading) loadingSince = 0;
         else if (loadingSince == 0) loadingSince = up;
@@ -560,18 +563,16 @@ final class PlayerOverlay extends View {
         } else if (status != null && loading) {
             c.drawText(status, w / 2f, h / 2f + 220 * k, messageFont);
         }
-        if (!pauseInfo && panel == P_NONE) drawButton(c, a);
+        if (!pauseInfo && panel == P_NONE && !firstLoad) drawButton(c, a);
         drawToast(c, up);
         if (animating) postInvalidateOnAnimation();     // every frame while something moves, not every tick
     }
 
-    /** The loader: a red arc growing and shrinking as it turns, on a faint ring and a soft dark disc. */
+    /** The loader: a red arc growing and shrinking as it turns on a faint ring, the percent inside it. */
     private void drawLoader(Canvas c, long up, float a) {
-        float cx = w / 2f, cy = h / 2f, r = 38 * k, t = (up % 100_000) / 1000f;
+        float cx = w / 2f, cy = h / 2f, r = 62 * k, t = (up % 100_000) / 1000f;
         fill.setShader(null);
-        fill.setColor(Ui.alpha(0x73000000, a));
-        c.drawCircle(cx, cy, r + 30 * k, fill);
-        stroke.setStrokeWidth(5 * k);
+        stroke.setStrokeWidth(6 * k);
         stroke.setColor(Ui.alpha(0x2EFFFFFF, a));
         c.drawCircle(cx, cy, r, stroke);
         float sweep = 30 + 230 * (0.5f - 0.5f * (float) Math.cos(t * 2 * Math.PI / 1.5f));
@@ -581,7 +582,7 @@ final class PlayerOverlay extends View {
         c.drawArc(rect, start, sweep, false, stroke);
         if (percentText != null) {
             percentFont.setAlpha(Math.round(255 * a));
-            c.drawText(percentText, cx, cy + r + 30 * k + 78 * k, percentFont);
+            c.drawText(percentText, cx, cy + Ui.cap(percentFont) / 2f, percentFont);
         }
     }
 
