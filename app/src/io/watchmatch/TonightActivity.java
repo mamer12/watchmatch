@@ -31,9 +31,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Spark Tonight: a chat that keeps asking short questions (who is watching, the mood, what you feel like, how long)
+ * Ask {spark}: a chat that keeps asking short questions (the mood, who is watching, what is on your mind, how long)
  * and then picks real titles from {catalog}. The AI asks (TonightApi) when this TV has a Watchme+ session; otherwise,
- * or when it can't be reached, four fixed questions do (TonightChat). Answers: a button, typing or the voice (Voice,
+ * or when it can't be reached, seven skippable fixed questions do (TonightChat). Answers: a button, typing or the voice (Voice,
  * as in search). The titles come as cards that open the title's page, as search results do. Its own screen: the normal
  * search is untouched. Chat logic is TonightChat, TonightResolver and TonightTaste (pure); this is the views.
  */
@@ -146,7 +146,7 @@ public class TonightActivity extends Activity implements Thumbs.Listener {
     /** What the person answered (a button, typing or the voice). */
     private void submit(String text) {
         if (state == null || !state.canAnswer()) return;
-        final int run = generation;
+        final int run = ++generation;       // a typed refine while titles are loading drops that search
         if (state.mode == TonightChat.Mode.FALLBACK) {
             state = TonightChat.answerFallback(state, text, TR);
             render();
@@ -195,7 +195,7 @@ public class TonightActivity extends Activity implements Thumbs.Listener {
                 if (found.isEmpty()) {
                     addBubble(false, TonightText.get(TR, "nothing"));
                     status.setText(TonightText.get(TR, "nothing"));
-                    showChoices(new ArrayList<TonightChat.Choice>(), true);
+                    showChoices(state.choices, true);
                 } else {
                     showPicks(found);
                 }
@@ -205,6 +205,7 @@ public class TonightActivity extends Activity implements Thumbs.Listener {
 
     /** New lines of the chat, then what can be answered. */
     private void render() {
+        if (state.status == TonightChat.Status.ASKING && picksLine.getVisibility() == View.VISIBLE) showPicks(null);   // the AI asks again
         for (; shown < state.messages.size(); shown++) {
             TonightProtocol.Msg m = state.messages.get(shown);
             addBubble(m.user, m.text);
@@ -456,7 +457,7 @@ public class TonightActivity extends Activity implements Thumbs.Listener {
         picksLabel.setText(TonightText.get(TR, "picks"));
         picksLabel.setGravity(Ui.rtl ? Gravity.RIGHT : Gravity.LEFT);
         status.setText(TonightText.get(TR, "leadIn"));
-        inputBar.setVisibility(View.GONE);
+        inputBar.setVisibility(state != null && state.canAnswer() ? View.VISIBLE : View.GONE);   // the AI takes a refinement
         View first = null;
         for (int i = 0; i < picks.size(); i++) {
             View card = card(picks.get(i), i > 0);

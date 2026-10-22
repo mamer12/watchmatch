@@ -17,7 +17,7 @@ import java.util.Set;
 final class TonightChat {
     private TonightChat() {}
 
-    static final int MAX_HISTORY = 20, SHORT_MINUTES = 100;
+    static final int MAX_HISTORY = 20, SHORT_MINUTES = 100, MAX_IDEA = 60;
 
     enum Mode { AI, FALLBACK }
     enum Status { ASKING, THINKING, DONE }
@@ -46,24 +46,62 @@ final class TonightChat {
         }
     }
 
+    private static final String SKIP = "skip", IDEA = "idea", IDEA_TEXT = "ideaText";
+    private static final String[] SKIP_OPTION = {SKIP, SKIP, "skip", "pass", "pular", "omitir", "saltar", "تخطي", "تجاوز"};
+
+    private static String[] genre(String id, String... words) {
+        String[] o = new String[words.length + 2];
+        o[0] = id;
+        o[1] = "g:" + id;
+        System.arraycopy(words, 0, o, 2, words.length);
+        return o;
+    }
+
+    /** Asked once each, in this order; every one can be skipped, and the idea also takes free text. */
     private static final Step[] STEPS = {
+        new Step("mood", "qMood",
+                new String[] {"happy", "happy", "glad", "good", "feliz", "سعيد", "فرحان", "مبسوط"},
+                new String[] {"relaxed", "relaxed", "calm", "chill", "relajado", "relaxado", "مرتاح", "هادئ", "رايق"},
+                new String[] {"sad", "sad", "down", "cry", "triste", "حزين", "زعلان"},
+                new String[] {"tense", "tense", "stressed", "anxious", "tenso", "متوتر", "قلقان"},
+                new String[] {"excited", "excited", "pumped", "energetic", "animado", "emocionado", "متحمس"},
+                new String[] {"curious", "curious", "curioso", "فضولي", "فضول"},
+                new String[] {"romantic", "romantic", "love", "romântico", "romantico", "رومانسي", "حب"},
+                new String[] {"nostalgic", "nostalgic", "nostalgia", "nostálgico", "nostalgico", "حنين", "نوستالجيا"},
+                SKIP_OPTION),
         new Step("company", "qCompany",
-                new String[] {"alone", "alone", "me", "myself", "alone", "solo", "sozinho", "وحدي", "لحالي", "انا"},
+                new String[] {"alone", "alone", "me", "myself", "solo", "sozinho", "وحدي", "لحالي", "انا"},
                 new String[] {"family", "family", "kids", "wife", "parents", "familia", "família", "عائله", "عايله", "اهلي", "اطفال"},
-                new String[] {"friends", "friends", "buddies", "amigos", "friend", "ربع", "اصدقاء", "اصحاب", "صحاب"}),
+                new String[] {"friends", "friends", "buddies", "amigos", "friend", "ربع", "اصدقاء", "اصحاب", "صحاب"},
+                SKIP_OPTION),
         new Step("kind", "qKind",
                 new String[] {"movie", "movie", "film", "filme", "pelicula", "فيلم", "افلام"},
                 new String[] {"tv", "tv", "series", "serie", "show", "série", "مسلسل", "مسلسلات"},
-                new String[] {"any", "any", "either", "tanto faz", "cualquiera", "مو مهم", "اي شي", "اي واحد"}),
-        new Step("mood", "qMood",
-                new String[] {"light", "light", "fun", "funny", "comedy", "leve", "ligero", "خفيف", "مرح", "كوميدي"},
-                new String[] {"intense", "intense", "action", "intenso", "قوي", "مشحون", "اكشن"},
-                new String[] {"thoughtful", "thoughtful", "deep", "drama", "reflexivo", "عميق", "دراما"},
-                new String[] {"thrilling", "thrilling", "thriller", "suspense", "suspenso", "تشويق", "اثاره", "رعب"}),
+                new String[] {"any", "any", "either", "tanto faz", "cualquiera", "مو مهم", "اي شي", "اي واحد"},
+                SKIP_OPTION),
+        new Step(IDEA, "qIdea",
+                genre("action", "اكشن", "ação", "acción"), genre("comedy", "funny", "comédia", "comedia", "كوميدي"),
+                genre("drama", "دراما"), genre("thriller", "suspense", "suspenso", "تشويق", "اثاره"),
+                genre("horror", "scary", "terror", "رعب"), genre("sci-fi", "scifi", "sci fi", "science fiction", "خيال علمي"),
+                genre("romance", "رومانسيه"), genre("animation", "cartoon", "animação", "animación", "انميشن", "كرتون"),
+                genre("documentary", "documentário", "documental", "وثائقي"),
+                SKIP_OPTION),
         new Step("length", "qLength",
                 new String[] {"short", "short", "quick", "curto", "corto", "قصير", "سريع"},
                 new String[] {"long", "long", "time", "tempo", "tiempo", "وقت"},
-                new String[] {"any", "anyLength", "whatever", "qualquer", "cualquier", "مو مهم", "اي شي"}),
+                new String[] {"any", "anyLength", "whatever", "qualquer", "cualquier", "مو مهم", "اي شي"},
+                SKIP_OPTION),
+        new Step("origin", "qOrigin",
+                new String[] {"ar", "o:ar", "arabic", "árabe", "arabe", "عربي", "عربيه"},
+                new String[] {"en", "o:en", "english", "hollywood", "inglês", "ingles", "انكليزي", "انجليزي", "هوليوود"},
+                new String[] {"tr", "o:tr", "turkish", "turkey", "turco", "تركي", "تركيه"},
+                new String[] {"ko", "o:ko", "korean", "korea", "coreano", "كوري", "كوريه"},
+                SKIP_OPTION),
+        new Step("era", "qEra",
+                new String[] {"new", "e:new", "recent", "latest", "new", "reciente", "جديد", "حديث"},
+                new String[] {"mid", "e:mid", "2000s", "2010s", "2000", "2010"},
+                new String[] {"old", "e:old", "classic", "classics", "old", "clasico", "clásico", "clássico", "قديم", "كلاسيك"},
+                SKIP_OPTION),
     };
 
     static int steps() {
@@ -76,17 +114,29 @@ final class TonightChat {
         return out;
     }
 
-    private static final Map<String, String[]> MOOD_GENRES = new LinkedHashMap<>();
+    private static final Map<String, String[]> MOOD_GENRES = new LinkedHashMap<>(), MOOD_EXCLUDE = new LinkedHashMap<>();
     static {
-        MOOD_GENRES.put("light", new String[] {"comedy", "animation", "romance"});
-        MOOD_GENRES.put("intense", new String[] {"action", "crime", "thriller"});
-        MOOD_GENRES.put("thoughtful", new String[] {"drama", "history", "documentary"});
-        MOOD_GENRES.put("thrilling", new String[] {"thriller", "mystery", "action"});
+        mood("happy", new String[] {"comedy", "animation", "adventure"}, "horror", "war");
+        mood("relaxed", new String[] {"comedy", "romance", "documentary"}, "horror", "war", "crime");
+        mood("sad", new String[] {"drama", "romance"});
+        mood("tense", new String[] {"thriller", "crime", "mystery"});
+        mood("excited", new String[] {"action", "adventure", "sci-fi"});
+        mood("curious", new String[] {"documentary", "mystery", "history"});
+        mood("romantic", new String[] {"romance", "drama", "comedy"}, "horror", "war");
+        mood("nostalgic", new String[] {"adventure", "comedy", "family"}, "horror");
     }
 
+    private static void mood(String id, String[] genres, String... exclude) {
+        MOOD_GENRES.put(id, genres);
+        MOOD_EXCLUDE.put(id, exclude);
+    }
+
+    static final int RECENT_YEARS = 5;
+
     /** Maps the answers (question id to answer id) to the filters the AI returns, so one resolver serves both. */
-    static TonightProtocol.Filters filtersFromAnswers(Map<String, String> a) {
+    static TonightProtocol.Filters filtersFromAnswers(Map<String, String> a, int thisYear) {
         String company = a.containsKey("company") ? a.get("company") : "alone";
+        String mood = a.get("mood"), idea = a.get(IDEA), text = a.get(IDEA_TEXT);
         List<String> add = new ArrayList<>(), exclude = new ArrayList<>();
         if ("family".equals(company)) {
             add.add("family");
@@ -94,17 +144,24 @@ final class TonightChat {
         } else if ("friends".equals(company)) {
             add.addAll(Arrays.asList("comedy", "adventure"));
         }
+        if (MOOD_EXCLUDE.containsKey(mood)) exclude.addAll(Arrays.asList(MOOD_EXCLUDE.get(mood)));
         Set<String> genres = new LinkedHashSet<>();
-        String[] mood = MOOD_GENRES.get(a.get("mood"));
-        if (mood != null) genres.addAll(Arrays.asList(mood));
+        if (idea != null) genres.add(idea);
+        if (MOOD_GENRES.containsKey(mood)) genres.addAll(Arrays.asList(MOOD_GENRES.get(mood)));
         genres.addAll(add);
+        exclude = new ArrayList<>(new LinkedHashSet<>(exclude));
+        if (idea != null) exclude.remove(idea);
         genres.removeAll(exclude);
         String kind = a.get("kind");
         String type = "movie".equals(kind) ? TonightProtocol.MOVIE : "tv".equals(kind) ? TonightProtocol.TV : TonightProtocol.ANY;
-        List<String> keywords = a.get("mood") != null && !a.get("mood").isEmpty() ? Collections.singletonList(a.get("mood"))
-                : Collections.<String>emptyList();
+        List<String> keywords = new ArrayList<>();
+        if (mood != null && !mood.isEmpty()) keywords.add(mood);
+        if (text != null && !text.isEmpty()) keywords.add(text);
+        String era = a.get("era");
+        int minYear = "new".equals(era) ? thisYear - RECENT_YEARS : "mid".equals(era) ? 2000 : 0;
+        int maxYear = "mid".equals(era) ? 2019 : "old".equals(era) ? 1999 : 0;
         return new TonightProtocol.Filters(type, new ArrayList<>(genres), exclude, keywords,
-                "short".equals(a.get("length")) ? SHORT_MINUTES : 0, 0, 0, "");
+                "short".equals(a.get("length")) ? SHORT_MINUTES : 0, minYear, maxYear, a.containsKey("origin") ? a.get("origin") : "");
     }
 
     /** Spelling and punctuation aside: lower case words with single spaces. */
@@ -163,8 +220,9 @@ final class TonightChat {
             this.answers = Collections.unmodifiableMap(new LinkedHashMap<>(answers));
         }
 
+        /** Asking; or, with the AI, after the results too (type or tap a refine chip: more of this, shorter, no horror). */
         boolean canAnswer() {
-            return status == Status.ASKING;
+            return status == Status.ASKING || mode == Mode.AI && status == Status.DONE && turns < TonightProtocol.MAX_USER_TURNS;
         }
 
         boolean done() {
@@ -213,23 +271,30 @@ final class TonightChat {
         return s.with(s.mode, msgs, s.turns + 1, Status.THINKING, Collections.<Choice>emptyList(), s.filters, s.step, s.answers);
     }
 
-    /** A fixed-question answer (a button or said or typed). An unknown one asks the same question again. */
+    /**
+     * A fixed-question answer (a button or said or typed). An unknown one asks the same question again, except at the idea,
+     * where any other text is the person's own words. Skip moves on without an answer.
+     */
     static State answerFallback(State s, String input, TonightText.Tr tr) {
-        if (s.step >= STEPS.length || !s.canAnswer()) return s;
+        if (s.step >= STEPS.length || !s.canAnswer() || s.mode != Mode.FALLBACK) return s;
         Step step = STEPS[s.step];
         String option = matchOption(step, input);
         State withUser = addUser(s, input);
         if (withUser == s) return s;
-        if (option == null) {
+        Map<String, String> answers = new LinkedHashMap<>(withUser.answers);
+        if (option == null && IDEA.equals(step.id)) {
+            answers.put(IDEA_TEXT, TonightProtocol.cleanText(input, MAX_IDEA));
+        } else if (option == null) {
             return withUser.with(s.mode, say(withUser.messages, TonightText.get(tr, "pickOne")), s.turns, Status.ASKING,
                     choicesFor(step, tr), s.filters, s.step, s.answers);
+        } else if (!SKIP.equals(option)) {
+            answers.put(step.id, option);
         }
-        Map<String, String> answers = new LinkedHashMap<>(withUser.answers);
-        answers.put(step.id, option);
         int next = s.step + 1;
         if (next >= STEPS.length) {
             return withUser.with(s.mode, say(withUser.messages, TonightText.get(tr, "leadIn")), withUser.turns, Status.DONE,
-                    Collections.<Choice>emptyList(), filtersFromAnswers(answers), next, answers);
+                    Collections.<Choice>emptyList(), filtersFromAnswers(answers, java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)),
+                    next, answers);
         }
         return askStep(withUser.with(s.mode, withUser.messages, withUser.turns, Status.ASKING, withUser.choices, s.filters,
                 s.step, answers), next, null, tr);
@@ -239,7 +304,9 @@ final class TonightChat {
     static State applyReply(State s, TonightProtocol.Reply r, TonightText.Tr tr) {
         List<TonightProtocol.Msg> msgs = say(s.messages, r.say);
         if (r.filters != null) {
-            return s.with(s.mode, msgs, s.turns, Status.DONE, Collections.<Choice>emptyList(), r.filters, s.step, s.answers);
+            List<Choice> refine = new ArrayList<>();
+            for (String c : r.choices) refine.add(new Choice(c, c));
+            return s.with(s.mode, msgs, s.turns, Status.DONE, refine, r.filters, s.step, s.answers);
         }
         if (s.turns >= TonightProtocol.MAX_USER_TURNS) {
             return s.with(s.mode, say(msgs, TonightText.get(tr, "capped")), s.turns, Status.DONE, Collections.<Choice>emptyList(),

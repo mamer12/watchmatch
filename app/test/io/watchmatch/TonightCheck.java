@@ -72,7 +72,7 @@ public final class TonightCheck {
         expect("excluded genres never repeat a wanted one", f != null && f.excludeGenres.equals(Collections.singletonList("horror")));
         expect("limits kept", f != null && f.maxMinutes == 95 && f.minYear == 2010 && f.maxYear == 2020 && f.lang.equals("ar"));
         expect("keywords lower case, unique", f != null && f.keywords.equals(Arrays.asList("light", "fun")));
-        expect("filters end the chat: no choices", done != null && done.choices.isEmpty());
+        expect("filters keep the choices as refine chips", done != null && done.choices.equals(Collections.singletonList("x")));
 
         TonightProtocol.Filters bad = reply("{\"say\":\"ok\",\"choices\":[],\"filters\":{\"type\":\"book\",\"genres\":\"x\",\"maxMinutes\":5,"
                 + "\"minYear\":2020,\"maxYear\":2010,\"lang\":\"english\"}}").filters;
@@ -178,48 +178,79 @@ public final class TonightCheck {
         return TonightChat.answerFallback(s, text, EN);
     }
 
+    private static TonightProtocol.Filters moodFilters(String mood) {
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put("mood", mood);
+        return TonightChat.filtersFromAnswers(m, 2026);
+    }
+
     private static void chat() {
         TonightChat.State s = TonightChat.start(TonightChat.Mode.FALLBACK, EN);
-        expect("starts with the first question and its buttons", s.canAnswer() && s.messages.size() == 1
-                && s.messages.get(0).text.equals("Who is watching tonight?") && s.choices.size() == 3);
+        expect("starts with the mood question: 8 moods and Skip", s.canAnswer() && s.messages.size() == 1
+                && s.messages.get(0).text.equals("How are you feeling?") && s.choices.size() == 9
+                && s.choices.get(8).value.equals("skip") && s.choices.get(0).value.equals("happy"));
         expect("the AI chat starts the same way", TonightChat.start(TonightChat.Mode.AI, EN).messages.get(0).text.equals(s.messages.get(0).text));
         TonightChat.State bad = answer(s, "banana");
         expect("an unknown answer asks again", bad.canAnswer() && bad.step == 0 && bad.turns == 0
-                && bad.messages.get(bad.messages.size() - 1).text.equals("Please pick one of the options.") && bad.choices.size() == 3);
+                && bad.messages.get(bad.messages.size() - 1).text.equals("Please pick one of the options.") && bad.choices.size() == 9);
+        s = answer(s, "tense");
+        expect("who is watching next", s.step == 1 && s.messages.get(s.messages.size() - 1).text.equals("Who is watching?") && s.choices.size() == 4);
         s = answer(s, "family");
-        expect("next question", s.canAnswer() && s.step == 1 && s.choices.get(0).value.equals("movie"));
         s = answer(s, "A series");
-        s = answer(s, "Thrilling");
-        expect("the third question has its four moods", s.step == 3 && s.choices.size() == 3 && s.messages.get(s.messages.size() - 1).text.equals("How much time do you have?"));
+        expect("the idea question: genres, Skip, typing allowed", s.step == 3 && s.choices.size() == 10 && s.canAnswer());
+        s = answer(s, "something with a heist");
+        expect("free text at the idea is kept as a keyword", s.step == 4 && "something with a heist".equals(s.answers.get("ideaText")) && s.answers.get("idea") == null);
         s = answer(s, "short");
-        expect("done after the fourth", s.done() && s.filters != null && !s.canAnswer());
+        expect("then the origin", s.step == 5 && s.messages.get(s.messages.size() - 1).text.equals("Which language or origin?"));
+        s = answer(s, "Skip");
+        expect("skipped: no answer saved, on to the era", s.step == 6 && !s.answers.containsKey("origin"));
+        s = answer(s, "recent");
+        expect("done after the seventh", s.done() && s.filters != null && !s.canAnswer());
         TonightProtocol.Filters f = s.filters;
-        expect("family + series + thrilling + short: filters", f.type.equals("tv") && f.genres.equals(Arrays.asList("thriller", "mystery", "action", "family"))
-                && f.excludeGenres.equals(Arrays.asList("horror", "war", "crime")) && f.maxMinutes == 100 && f.keywords.equals(Collections.singletonList("thrilling")));
+        expect("tense + family + series + heist + short + recent", f.type.equals("tv")
+                && f.genres.equals(Arrays.asList("thriller", "mystery", "family")) && f.excludeGenres.equals(Arrays.asList("horror", "war", "crime"))
+                && f.maxMinutes == 100 && f.keywords.equals(Arrays.asList("tense", "something with a heist")) && f.minYear > 2000 && f.maxYear == 0 && f.lang.isEmpty());
         expect("a finished chat takes no more answers", answer(s, "alone") == s);
+        TonightChat.State allSkipped = TonightChat.start(TonightChat.Mode.FALLBACK, EN);
+        for (int i = 0; i < TonightChat.steps(); i++) allSkipped = answer(allSkipped, "skip");
+        expect("seven skips: open filters", allSkipped.done() && allSkipped.filters.genres.isEmpty() && allSkipped.filters.type.equals("any")
+                && allSkipped.answers.isEmpty() && !allSkipped.filters.hasLimits());
+        expect("no question comes twice", TonightChat.steps() == 7);
+        for (TonightChat.Choice c : TonightChat.start(TonightChat.Mode.FALLBACK, EN).choices) {
+            expect("every mood maps to genres: " + c.value, c.value.equals("skip") || !moodFilters(c.value).genres.isEmpty());
+        }
 
         Map<String, String> a = new LinkedHashMap<>();
         a.put("company", "friends");
         a.put("kind", "movie");
-        a.put("mood", "light");
-        a.put("length", "long");
-        TonightProtocol.Filters g = TonightChat.filtersFromAnswers(a);
-        expect("friends + film + light: filters", g.type.equals("movie") && g.genres.equals(Arrays.asList("comedy", "animation", "romance", "adventure"))
-                && g.excludeGenres.isEmpty() && g.maxMinutes == 0);
-        TonightProtocol.Filters h = TonightChat.filtersFromAnswers(Collections.<String, String>emptyMap());
+        a.put("mood", "happy");
+        a.put("idea", "horror");
+        a.put("origin", "tr");
+        a.put("era", "old");
+        TonightProtocol.Filters g = TonightChat.filtersFromAnswers(a, 2026);
+        expect("friends + film + happy + horror + Turkish + classics", g.type.equals("movie")
+                && g.genres.equals(Arrays.asList("horror", "comedy", "animation", "adventure")) && g.excludeGenres.equals(Collections.singletonList("war"))
+                && g.lang.equals("tr") && g.maxYear == 1999 && g.minYear == 0);
+        TonightProtocol.Filters h = TonightChat.filtersFromAnswers(Collections.<String, String>emptyMap(), 2026);
         expect("no answers: any, no genres", h.type.equals("any") && h.genres.isEmpty() && h.keywords.isEmpty());
+        Map<String, String> mid = new LinkedHashMap<>();
+        mid.put("era", "mid");
+        TonightProtocol.Filters m = TonightChat.filtersFromAnswers(mid, 2026);
+        expect("2000 to 2019", m.minYear == 2000 && m.maxYear == 2019);
 
         // Said, in any language, in a sentence.
         TonightChat.State v = TonightChat.start(TonightChat.Mode.FALLBACK, EN);
+        v = answer(v, "حزين");
+        expect("Arabic mood said", v.step == 1 && "sad".equals(v.answers.get("mood")));
         v = answer(v, "العائلة");
-        expect("Arabic label said", v.step == 1 && "family".equals(v.answers.get("company")));
+        expect("Arabic label said", v.step == 2 && "family".equals(v.answers.get("company")));
         v = answer(v, "اريد فيلم");
-        expect("Arabic sentence", v.step == 2 && "movie".equals(v.answers.get("kind")));
-        v = answer(v, "something with suspense please");
-        expect("English sentence", v.step == 3 && "thrilling".equals(v.answers.get("mood")));
-        expect("a label with brackets", answer(v, "Short (under 100 min)").done());
-        expect("'Just me' by label", "alone".equals(answer(TonightChat.start(TonightChat.Mode.FALLBACK, EN), "just me").answers.get("company")));
-        expect("by voice with a full stop", "friends".equals(answer(TonightChat.start(TonightChat.Mode.FALLBACK, EN), "With my friends.").answers.get("company")));
+        expect("Arabic sentence", v.step == 3 && "movie".equals(v.answers.get("kind")));
+        v = answer(v, "something funny please");
+        expect("English sentence picks the genre", v.step == 4 && "comedy".equals(v.answers.get("idea")));
+        expect("a label with brackets", "short".equals(answer(v, "Short (under 100 min)").answers.get("length")));
+        expect("'Just me' by label", "alone".equals(answer(answer(TonightChat.start(TonightChat.Mode.FALLBACK, EN), "skip"), "just me").answers.get("company")));
+        expect("by voice with a full stop", "friends".equals(answer(answer(TonightChat.start(TonightChat.Mode.FALLBACK, EN), "skip"), "With my friends.").answers.get("company")));
 
         TonightChat.State blank = TonightChat.start(TonightChat.Mode.AI, EN);
         expect("empty input changes nothing", TonightChat.addUser(blank, "   ") == blank);
@@ -231,6 +262,11 @@ public final class TonightCheck {
         expect("AI question: asking, its choices", next.canAnswer() && next.choices.size() == 2 && next.choices.get(1).value.equals("Intense"));
         TonightChat.State fin = TonightChat.applyReply(next, reply("{\"say\":\"Here\",\"choices\":[],\"filters\":{\"type\":\"any\",\"genres\":[\"drama\"],\"excludeGenres\":[],\"keywords\":[]}}"), EN);
         expect("AI filters end the chat", fin.done() && fin.filters.genres.equals(Collections.singletonList("drama")));
+        TonightChat.State refine = TonightChat.applyReply(next, reply("{\"say\":\"Here\",\"choices\":[\"Shorter\",\"No horror\"],\"filters\":{\"type\":\"any\",\"genres\":[\"drama\"],\"excludeGenres\":[],\"keywords\":[]}}"), EN);
+        expect("after results the AI's refine chips stay and typing is allowed", refine.done() && refine.choices.size() == 2 && refine.canAnswer());
+        TonightChat.State refined = TonightChat.addUser(refine, "shorter please");
+        expect("a refinement goes back to the AI", refined.status == TonightChat.Status.THINKING && refined.turns == refine.turns + 1);
+        expect("fixed-question results take no refinement", !answer(allSkipped, "x").canAnswer());
         TonightChat.State capped = asked;
         for (int i = 0; i < TonightProtocol.MAX_USER_TURNS; i++) {
             capped = TonightChat.applyReply(capped, reply("{\"say\":\"More?\",\"choices\":[\"yes\"],\"filters\":null}"), EN);

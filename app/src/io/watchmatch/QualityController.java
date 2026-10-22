@@ -11,8 +11,8 @@ package io.watchmatch;
  * spare. At least COOLDOWN_MS between two changes. A quality picked by hand turns all of it off (setFixed).
  */
 final class QualityController {
-    static final double UP_FACTOR = 1.4, DOWN_FACTOR = 1.1, DOWN_AHEAD_S = 8, UP_AHEAD_S = 20, EWMA = 0.3;
-    static final long UP_STABLE_MS = 25_000, COOLDOWN_MS = 15_000;
+    static final double UP_FACTOR = 1.8, DOWN_FACTOR = 1.3, DOWN_AHEAD_S = 14, UP_AHEAD_S = 25, EWMA = 0.3;
+    static final long UP_STABLE_MS = 45_000, COOLDOWN_MS = 15_000, UP_COOLDOWN_MS = 40_000;
     /** Ahead must have dropped by at least this much since the last tick to count as falling. */
     static final double FALLING_S = 0.25;
 
@@ -91,7 +91,7 @@ final class QualityController {
         boolean starving = aheadS < DOWN_AHEAD_S && falling;
         boolean tooSlow = throughput > 0 && now > 0 && throughput < now * DOWN_FACTOR;
         if ((starving || tooSlow) && current > 0) return current - 1;
-        if (current < top && healthySince >= 0 && nowMs - healthySince >= UP_STABLE_MS) {
+        if (current < top && healthySince >= 0 && nowMs - healthySince >= UP_STABLE_MS && nowMs - lastSwitch >= UP_COOLDOWN_MS) {
             double next = bitrate[current + 1];
             if (next > 0 && throughput > 0 && next * UP_FACTOR <= throughput) return current + 1;
         }

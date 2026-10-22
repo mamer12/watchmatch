@@ -41,7 +41,7 @@ public final class QualityControllerCheck {
         QualityController q = make(1080, 2);
         q.onThroughput(0.1 * MB);                      // far too slow for 720p
         eq("no change inside the cooldown", -1, q.tick(10_000, 30));
-        eq("down once the cooldown is over (speed under 1.1 x bitrate)", 1, q.tick(15_000, 30));
+        eq("down once the cooldown is over (speed under 1.3 x bitrate)", 1, q.tick(15_000, 30));
         q.switched(1, 15_000);
         eq("not again at once", -1, q.tick(20_000, 30));
     }
@@ -49,36 +49,36 @@ public final class QualityControllerCheck {
     private static void up() {
         QualityController q = make(1080, 1);
         q.onThroughput(5 * MB);
-        eq("not before 25 s of a healthy buffer", -1, q.tick(15_000, 25));
-        eq("still not at 24 s", -1, q.tick(39_000, 25));
-        eq("one step up after 25 s with 20 s ahead", 2, q.tick(40_000, 25));
-        q.switched(2, 40_000);
-        eq("only one step at a time, and the cooldown", -1, q.tick(41_000, 25));
+        eq("not before 45 s of a healthy buffer", -1, q.tick(15_000, 30));
+        eq("still not at 44 s", -1, q.tick(59_000, 30));
+        eq("one step up after 45 s with 25 s ahead", 2, q.tick(60_000, 30));
+        q.switched(2, 60_000);
+        eq("only one step at a time, and the cooldown", -1, q.tick(61_000, 30));
         QualityController thin = make(1080, 1);
         thin.onThroughput(5 * MB);
-        thin.tick(15_000, 25);
-        eq("a dip under 20 s ahead restarts the wait", -1, thin.tick(30_000, 19));
-        eq("the wait counts from the dip", -1, thin.tick(54_000, 25));
-        eq("then up", 2, thin.tick(80_000, 25));
+        thin.tick(15_000, 30);
+        eq("a dip under 25 s ahead restarts the wait", -1, thin.tick(30_000, 19));
+        eq("the wait counts from the dip", -1, thin.tick(70_000, 30));
+        eq("then up", 2, thin.tick(120_000, 30));
         QualityController slow = make(1080, 1);
-        slow.onThroughput(0.6 * MB);                  // 720p is 0.5: 0.6 < 0.5 x 1.4
+        slow.onThroughput(0.6 * MB);                  // 720p is 0.5: 0.6 < 0.5 x 1.8
         slow.tick(15_000, 30);
-        eq("no up when speed < next bitrate x 1.4", -1, slow.tick(60_000, 30));
+        eq("no up when speed < next bitrate x 1.8", -1, slow.tick(90_000, 30));
         QualityController unknown = new QualityController(H, 1080, 1, 0);
         unknown.onThroughput(9 * MB);
         unknown.tick(15_000, 30);
-        eq("no up while the next bitrate is unknown", -1, unknown.tick(60_000, 30));
+        eq("no up while the next bitrate is unknown", -1, unknown.tick(90_000, 30));
     }
 
     private static void down() {
         QualityController q = make(1080, 3);
         q.onThroughput(5 * MB);
-        q.tick(16_000, 12);
-        eq("under 8 s ahead and falling: down one step", 2, q.tick(17_000, 7));
+        q.tick(16_000, 20);
+        eq("under 14 s ahead and falling: down one step", 2, q.tick(17_000, 7));
         QualityController flat = make(1080, 3);
         flat.onThroughput(5 * MB);
         flat.tick(16_000, 7);
-        eq("under 8 s but not falling: stay", -1, flat.tick(17_000, 7));
+        eq("under 14 s but not falling: stay", -1, flat.tick(17_000, 7));
         QualityController low = make(1080, 0);
         low.onThroughput(0.01 * MB);
         eq("nothing under the lowest", -1, low.tick(20_000, 1));
@@ -86,7 +86,7 @@ public final class QualityControllerCheck {
         smooth.onThroughput(2 * MB);
         smooth.onThroughput(0.2 * MB);                // EWMA: 2 + 0.3 x (0.2 - 2) = 1.46
         eq("EWMA smooths a dip", true, Math.abs(smooth.throughput() - 1.46 * MB) < 1);
-        eq("a smoothed dip above 1.1 x bitrate stays", -1, smooth.tick(20_000, 30));
+        eq("a smoothed dip above 1.3 x bitrate stays", -1, smooth.tick(20_000, 30));
     }
 
     private static void cap() {

@@ -187,7 +187,7 @@ final class TonightProtocol {
         Filters filters = sanitizeFilters(m.get("filters"));
         // Either a next question (with something to tap or type) or the filters; a reply with neither is useless.
         if (filters == null && list.isEmpty() && !say.contains("?") && !say.contains("؟")) return null;
-        return new Reply(say, filters != null ? Collections.<String>emptyList() : list, filters);
+        return new Reply(say, list, filters);        // with filters, the choices are refine chips shown under the results
     }
 
     /** The request body: {"messages":[{"role","text"}...],"summary":{...}}. `summary` is already JSON. */

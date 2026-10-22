@@ -73,6 +73,9 @@ final class CinemaView extends View implements Choreographer.FrameCallback, Thum
     private static final float BILLBOARD_OVERLAP = 64;
     /** The avatar at the end of the top bar (after the gear): it opens the profile menu. */
     private static final int NAV_PROFILE = P_SETTINGS + 1;
+    /** Spark's sparkle in the top bar, between the lens and Home (not a page: OK opens its own screen). */
+    private static final int NAV_SPARK = -1;
+    private final android.graphics.Path sparkle = new android.graphics.Path();
     /** focusRow on the billboard. */
     private static final int BILLBOARD = -1;
     /** The focused card grows after resting this long; the picture and preview follow once it's grown. */
@@ -1009,10 +1012,10 @@ final class CinemaView extends View implements Choreographer.FrameCallback, Thum
     private boolean navKey(int code) {
         switch (Ui.dpad(code)) {
             case KeyEvent.KEYCODE_DPAD_LEFT:
-                navFocus = Math.max(0, navFocus - 1);
+                navFocus = navFocus == NAV_SPARK ? P_SEARCH : navFocus == P_HOME ? NAV_SPARK : Math.max(0, navFocus - 1);
                 break;
             case KeyEvent.KEYCODE_DPAD_RIGHT:
-                navFocus = Math.min(NAV_PROFILE, navFocus + 1);
+                navFocus = navFocus == P_SEARCH ? NAV_SPARK : navFocus == NAV_SPARK ? P_HOME : Math.min(NAV_PROFILE, navFocus + 1);
                 break;
             case KeyEvent.KEYCODE_DPAD_UP:
                 break;
@@ -1022,6 +1025,10 @@ final class CinemaView extends View implements Choreographer.FrameCallback, Thum
             case KeyEvent.KEYCODE_NUMPAD_ENTER:
                 if (navFocus == NAV_PROFILE) {
                     profiles.openMenu();
+                    break;
+                }
+                if (navFocus == NAV_SPARK) {
+                    getContext().startActivity(TonightData.launch(getContext()));
                     break;
                 }
                 inNav = false;
@@ -1455,6 +1462,10 @@ final class CinemaView extends View implements Choreographer.FrameCallback, Thum
                 c.drawText(names[i], at + 22 * k, y + Ui.halfCap(navFont), navFont);
             }
             if (i != P_SETTINGS) x += itemW + 12 * k;
+            if (i == P_SEARCH) {
+                drawSparkItem(c, x, y, a);
+                x += 64 * k + 12 * k;
+            }
         }
         navFont.setColor(0xFFFFFFFF);
         drawProfileTab(c, a);
@@ -1490,6 +1501,34 @@ final class CinemaView extends View implements Choreographer.FrameCallback, Thum
         stroke.setStrokeCap(Paint.Cap.ROUND);
         c.drawLine(cx - r, cy, cx + r, cy, stroke);
         c.drawLine(cx, cy - r, cx, cy + r, stroke);
+    }
+
+    /** Spark's entry: a sparkle (AI) beside the lens, same size and focus pill, red until focused. */
+    private void drawSparkItem(Canvas c, float x, float y, float a) {
+        boolean focused = inNav && navFocus == NAV_SPARK;
+        float at = Ui.mx(x, 64 * k, w);
+        rect.set(at, y - 30 * k, at + 64 * k, y + 30 * k);
+        if (focused) {
+            fill.setColor(Ui.alpha(0xFFFFFFFF, a));
+            c.drawRoundRect(rect, 30 * k, 30 * k, fill);
+        }
+        fill.setColor(Ui.alpha(focused ? 0xFF0B0B0D : RED, a));
+        float cx = rect.centerX() - 3 * k, cy = y + 3 * k;
+        drawStar(c, cx, cy, 14 * k);
+        drawStar(c, cx + 11 * k, cy - 13 * k, 6.5f * k);
+    }
+
+    /** A four-pointed star with hollow sides (reuses one Path). */
+    private void drawStar(Canvas c, float cx, float cy, float r) {
+        float in = r * 0.18f;
+        sparkle.reset();
+        sparkle.moveTo(cx, cy - r);
+        sparkle.quadTo(cx + in, cy - in, cx + r, cy);
+        sparkle.quadTo(cx + in, cy + in, cx, cy + r);
+        sparkle.quadTo(cx - in, cy + in, cx - r, cy);
+        sparkle.quadTo(cx - in, cy - in, cx, cy - r);
+        sparkle.close();
+        c.drawPath(sparkle, fill);
     }
 
     private void drawSearchIcon(Canvas c, float cx, float cy, int ink) {

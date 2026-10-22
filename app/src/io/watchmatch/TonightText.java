@@ -22,24 +22,22 @@ final class TonightText {
     }
 
     static {
-        add("title", "{spark} Hoje à noite", "{spark} Tonight", "{spark} Esta noche");
-        add("lead", "Responda umas perguntas rápidas e receba títulos para hoje.",
-                "Answer a few quick questions and get titles picked for tonight.",
-                "Responde unas preguntas rápidas y recibe títulos para esta noche.");
-        add("entry", "{spark} Hoje à noite: me ajude a escolher", "{spark} Tonight: help me pick",
-                "{spark} Esta noche: ayúdame a elegir");
+        add("title", "Pergunte ao {spark}", "Ask {spark}", "Pregunta a {spark}");
+        add("lead", "Responda umas perguntas rápidas e receba títulos escolhidos para você.",
+                "Answer a few quick questions and get titles picked for you.",
+                "Responde unas preguntas rápidas y recibe títulos elegidos para ti.");
         add("hint", "Escreva ou diga sua resposta…", "Type or say your answer…", "Escribe o di tu respuesta…");
         add("listening", "Ouvindo…", "Listening…", "Escuchando…");
         add("thinking", "Pensando…", "Thinking…", "Pensando…");
         add("finding", "Procurando títulos…", "Finding titles…", "Buscando títulos…");
-        add("picks", "Escolhidos para hoje", "Picked for tonight", "Elegidos para esta noche");
+        add("picks", "Escolhidos para você", "Picked for you", "Elegidos para ti");
         add("nothing", "Não encontrei nada. Tente outras respostas.", "I could not find a match. Try other answers.",
                 "No encontré nada. Prueba otras respuestas.");
         add("pickOne", "Escolha uma das opções.", "Please pick one of the options.", "Elige una de las opciones.");
         add("fallbackNote", "O chat inteligente não está disponível agora. Vamos com umas perguntas rápidas.",
                 "The smart chat is not available right now, so here are a few quick questions.",
                 "El chat inteligente no está disponible ahora, así que van unas preguntas rápidas.");
-        add("leadIn", "Isto combina com hoje à noite.", "Here is what fits tonight.", "Esto encaja con esta noche.");
+        add("leadIn", "Isto combina com você.", "Here is what fits you.", "Esto encaja contigo.");
         add("capped", "Chega de perguntas. Aqui está o que tenho.", "That is enough questions. Here is what I have.",
                 "Ya basta de preguntas. Esto es lo que tengo.");
         add("startOver", "Recomeçar", "Start over", "Empezar de nuevo");
@@ -49,9 +47,18 @@ final class TonightText {
                 "To answer by voice, allow the microphone for {app} in the TV's Settings > Apps.",
                 "Para responder por voz, permite el micrófono para {app} en Ajustes > Apps del televisor.");
         add("open", "OK abre o título", "OK opens the title", "OK abre el título");
-        add("entryChip", "Hoje à noite", "Tonight", "Esta noche");
-        // The fixed questions.
-        add("qCompany", "Quem vai assistir hoje?", "Who is watching tonight?", "¿Quién ve esta noche?");
+        // The fixed questions (mood, who, film or series, what is in mind, length, origin, era), each skippable.
+        add("skip", "Pular", "Skip", "Omitir");
+        add("qMood", "Como você está se sentindo?", "How are you feeling?", "¿Cómo te sientes?");
+        add("happy", "Feliz", "Happy", "Feliz");
+        add("relaxed", "Relaxado", "Relaxed", "Relajado");
+        add("sad", "Triste", "Sad", "Triste");
+        add("tense", "Tenso", "Tense", "Tenso");
+        add("excited", "Animado", "Excited", "Emocionado");
+        add("curious", "Curioso", "Curious", "Curioso");
+        add("romantic", "Romântico", "Romantic", "Romántico");
+        add("nostalgic", "Nostálgico", "Nostalgic", "Nostálgico");
+        add("qCompany", "Quem vai assistir?", "Who is watching?", "¿Quién ve?");
         add("alone", "Só eu", "Just me", "Solo yo");
         add("family", "Família", "Family", "Familia");
         add("friends", "Amigos", "Friends", "Amigos");
@@ -59,15 +66,21 @@ final class TonightText {
         add("movie", "Um filme", "A film", "Una película");
         add("tv", "Uma série", "A series", "Una serie");
         add("any", "Tanto faz", "Either", "Cualquiera");
-        add("qMood", "Qual é o seu humor?", "What mood are you in?", "¿Cómo te sientes?");
-        add("light", "Leve e divertido", "Light and fun", "Ligero y divertido");
-        add("intense", "Intenso", "Intense", "Intenso");
-        add("thoughtful", "Reflexivo", "Thoughtful", "Reflexivo");
-        add("thrilling", "Suspense", "Thrilling", "Emocionante");
+        add("qIdea", "O que você tem em mente? Escolha, escreva ou diga.", "What is on your mind? Pick, type or say it.",
+                "¿Qué tienes en mente? Elige, escribe o dilo.");
         add("qLength", "Quanto tempo você tem?", "How much time do you have?", "¿Cuánto tiempo tienes?");
         add("short", "Curto (menos de 100 min)", "Short (under 100 min)", "Corto (menos de 100 min)");
         add("long", "Tenho tempo", "I have time", "Tengo tiempo");
         add("anyLength", "Qualquer duração", "Any length", "Cualquier duración");
+        add("qOrigin", "De que língua ou país?", "Which language or origin?", "¿De qué idioma u origen?");
+        add("o:ar", "Árabe", "Arabic", "Árabe");
+        add("o:en", "Inglês", "English", "Inglés");
+        add("o:tr", "Turco", "Turkish", "Turco");
+        add("o:ko", "Coreano", "Korean", "Coreano");
+        add("qEra", "De que época?", "From which era?", "¿De qué época?");
+        add("e:new", "Recentes (últimos 5 anos)", "Recent (last 5 years)", "Recientes (últimos 5 años)");
+        add("e:mid", "De 2000 a 2019", "2000 to 2019", "De 2000 a 2019");
+        add("e:old", "Clássicos (antes de 2000)", "Classics (before 2000)", "Clásicos (antes de 2000)");
         // Why a title is on the list.
         add("matches", "Combina com seu humor: ", "Matches your mood: ", "Encaja con tu ánimo: ");
         add("youLike", "Você gosta de ", "You like ", "Te gusta ");
