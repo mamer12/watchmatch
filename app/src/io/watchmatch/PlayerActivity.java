@@ -16,6 +16,7 @@ import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 
@@ -821,6 +822,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
             }
         }
         if (oldStreamer != null) oldStreamer.close();
+        oldView.setVisibility(View.INVISIBLE);
         handler.postDelayed(() -> stage.removeView(oldView), 250);
         if (controller != null) controller.switched(Math.max(0, sources.indexOf(src)), SystemClock.uptimeMillis());
         learnBitrates();

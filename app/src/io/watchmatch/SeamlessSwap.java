@@ -252,13 +252,13 @@ final class SeamlessSwap {
         }
     }
 
-    /** One step: the new picture in front, the sound across, the old player gone. */
+    /** One step: the sound across and the old picture hidden, which shows the new one behind it (the new view is never
+     * moved: bringToFront would put its surface above the overlay and punch the subtitles and controls out). */
     private void swap(MediaPlayer p) {
         speed(p, 1f);
         p.setVolume(1f, 1f);
         MediaPlayer old = host.activePlayer();
         if (old != null) old.setVolume(0f, 0f);
-        view.bringToFront();
         Streamer s = streamer;
         SurfaceView v = view;
         Library.Source src = target;
