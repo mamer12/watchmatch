@@ -37,7 +37,7 @@ final class PlayerOverlay extends View {
     private static final int PANEL_ROWS = 8;
     private static final String[] LANGUAGES = {"ar", "en", "off"};
     private static final int F_BAR = 0, F_BUTTONS = 1;
-    private static final int B_AUDIO = 0, B_QUALITY = 1, B_EPISODES = 2, B_NEXT = 3, B_SPEED = 4, B_FAMILY = 5;
+    private static final int B_AUDIO = 0, B_QUALITY = 1, B_EPISODES = 2, B_NEXT = 3, B_SPEED = 4, B_FAMILY = 5, B_MARK = 6, B_CLEAR_MARK = 7;
     /** The Auto row of the quality panel (the other rows are file numbers). */
     private static final int AUTO_ROW = -1;
     private static final int P_NONE = 0, P_AUDIO = 1, P_QUALITY = 2, P_EPISODES = 3, P_SPEED = 4;
@@ -286,6 +286,14 @@ final class PlayerOverlay extends View {
                     player.toggleFamily();
                     buildButtons();
                 }
+                else if (b == B_MARK) {
+                    player.markIntro();
+                    buildButtons();
+                } else if (b == B_CLEAR_MARK) {
+                    player.clearIntroMark();
+                    buildButtons();
+                    buttonFocus = Math.min(buttonFocus, buttons.size() - 1);
+                }
                 else player.next();
         }
         show();
@@ -300,6 +308,12 @@ final class PlayerOverlay extends View {
         boolean family = CinemaPrefs.skipScenes(getContext());
         addButton(B_FAMILY, family ? Ui.tr("Modo família: ligado", "Family mode: On", "Modo familia: activado", "وضع العائلة: مفعّل")
                 : Ui.tr("Modo família: desligado", "Family mode: Off", "Modo familia: desactivado", "وضع العائلة: متوقف"));
+        if (player.canMarkIntro()) {
+            addButton(B_MARK, player.markingIntro() ? Ui.tr("Marcar fim da abertura", "Mark intro end", "Marcar fin de la intro", "تحديد نهاية المقدمة")
+                    : Ui.tr("Marcar abertura", "Mark intro", "Marcar intro", "تحديد المقدمة"));
+            if (player.hasIntroMark()) addButton(B_CLEAR_MARK, Ui.tr("Limpar marca da abertura", "Clear intro mark",
+                    "Borrar marca de la intro", "مسح علامة المقدمة"));
+        }
         if (player.isSeries()) addButton(B_EPISODES, Ui.tr("Episódios", "Episodes", "Episodios"));
         if (player.hasNext()) addButton(B_NEXT, Ui.tr("Próximo episódio", "Next episode", "Siguiente episodio"));
     }

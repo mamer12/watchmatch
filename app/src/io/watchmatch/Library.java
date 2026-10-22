@@ -363,6 +363,8 @@ final class Library {
         String rating = "", cast = "", director = "", trailer = "";
         /** {start, end} in ms: intros ("Skip intro"), and the scenes the catalog marked for families. */
         final List<long[]> intros = new ArrayList<>(), scenes = new ArrayList<>();
+        /** Where the credits start (ms), when TheIntroDB knows; -1 otherwise (NextUpRules then estimates). */
+        long credits = -1;
     }
 
     private static final String[] FILM_RATINGS = {"", "G", "PG", "PG-13", "R", "NC-17", "", ""};

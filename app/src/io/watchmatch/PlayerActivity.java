@@ -219,6 +219,8 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         audioTracks.clear();
         audioNames.clear();
         info = new Library.Info();
+        introFrom = FROM_NONE;
+        markStart = -1;
         startAt = firstAt >= 0 ? firstAt : fromStart ? 0 : Progress.resumeAt(this, t.id);
         lastPos = startAt;
         lastDur = 0;
@@ -259,6 +261,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
                 subtitleFiles = files;
                 info = details;
                 loadSubtitles();
+                otherIntros(t, gen);
             });
         });
     }
@@ -534,7 +537,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
                 }
             }
         }
-        if (!upNextSaved && NextUpRules.showing(hasNext(), d, p, -1)) markUpNext();
+        if (!upNextSaved && NextUpRules.showing(hasNext(), d, p, info.credits)) markUpNext();
     }
 
     /** Family mode from the player's buttons: says what it will do for this title, and skips a marked scene at once. */
@@ -574,9 +577,99 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         return -1;
     }
 
+    // MARK: - Intros the catalog doesn't have: TheIntroDB, then the person's own mark (the catalog's always wins)
+
+    private static final int FROM_NONE = 0, FROM_CATALOG = 1, FROM_DB = 2, FROM_MARK = 3;
+    private int introFrom = FROM_NONE;
+    private long markStart = -1;
+
+    /** The key of the series being watched ("" for a movie or a loose episode). */
+    private String seriesKey() {
+        Library.Title t = current();
+        if (root == null || t == null || !t.series || t.season <= 0) return "";
+        return !root.id.isEmpty() ? root.id : root.title;
+    }
+
+    private void otherIntros(final Library.Title t, final int gen) {
+        introFrom = info.intros.isEmpty() ? FROM_NONE : FROM_CATALOG;
+        String key = seriesKey();
+        if (key.isEmpty()) return;
+        if (introFrom == FROM_NONE) applyMark(IntroSources.mark(this, key));
+        if (introFrom == FROM_CATALOG && info.credits >= 0) return;
+        IntroSources.lookup(this, key, root.title, root.other, root.year, t.season, t.episode, found -> handler.post(() -> {
+            if (gen != generation || found == null) return;
+            if (introFrom != FROM_CATALOG && !found.intros.isEmpty()) {
+                info.intros.clear();
+                info.intros.addAll(found.intros);
+                introFrom = FROM_DB;
+            }
+            if (info.credits < 0 && found.credits >= 0) info.credits = found.credits;
+            overlay.invalidate();
+        }));
+    }
+
+    private void applyMark(long[] range) {
+        if (introFrom == FROM_CATALOG || introFrom == FROM_DB) return;
+        info.intros.clear();
+        if (range != null) info.intros.add(range);
+        introFrom = range == null ? FROM_NONE : FROM_MARK;
+    }
+
+    /** "Mark intro" can be offered: an episode of a series. */
+    boolean canMarkIntro() {
+        return !seriesKey().isEmpty();
+    }
+
+    /** Waiting for the second press (the intro's end). */
+    boolean markingIntro() {
+        return markStart >= 0;
+    }
+
+    boolean hasIntroMark() {
+        return canMarkIntro() && IntroSources.mark(this, seriesKey()) != null;
+    }
+
+    /** First press: the intro starts here. Second: it ends here, and it is kept for every episode of the series. */
+    void markIntro() {
+        String key = seriesKey();
+        if (key.isEmpty() || !prepared) return;
+        IntroMark.Press p = IntroMark.press(markStart, livePosition());
+        markStart = p.pendingStart;
+        switch (p.result) {
+            case IntroMark.START_SAVED:
+                overlay.toast(Ui.tr("Início da abertura salvo · marque o fim", "Intro start saved · mark the end",
+                        "Inicio de la intro guardado · marca el final", "تم حفظ بداية المقدمة · حدد النهاية"));
+                break;
+            case IntroMark.TOO_SHORT:
+                overlay.toast(Ui.tr("Abertura curta demais (mín. 5 s)", "Intro too short (min. 5 s)",
+                        "Intro demasiado corta (mín. 5 s)", "المقدمة قصيرة جدًا (5 ثوانٍ على الأقل)"));
+                break;
+            case IntroMark.TOO_LONG:
+                overlay.toast(Ui.tr("Abertura longa demais (máx. 5 min) · início refeito aqui",
+                        "Intro too long (max. 5 min) · start moved here",
+                        "Intro demasiado larga (máx. 5 min) · inicio movido aquí",
+                        "المقدمة طويلة جدًا (5 دقائق كحد أقصى) · نُقلت البداية إلى هنا"));
+                break;
+            default:
+                IntroSources.setMark(this, key, p.range);
+                applyMark(p.range);
+                overlay.toast(Ui.tr("Abertura salva para esta série", "Intro saved for this series",
+                        "Intro guardada para esta serie", "تم حفظ المقدمة لهذا المسلسل"));
+        }
+    }
+
+    void clearIntroMark() {
+        String key = seriesKey();
+        if (key.isEmpty()) return;
+        IntroSources.setMark(this, key, null);
+        markStart = -1;
+        applyMark(null);
+        overlay.toast(Ui.tr("Marca da abertura removida", "Intro mark cleared", "Marca de la intro borrada", "تم مسح علامة المقدمة"));
+    }
+
     /** The credits of an episode with one after it (NextUpRules): the "Next episode" button. */
     boolean nextUp() {
-        return prepared && (ended || NextUpRules.showing(hasNext(), duration(), position(), -1));
+        return prepared && (ended || NextUpRules.showing(hasNext(), duration(), position(), info.credits));
     }
 
     /** Playback reached its natural end and the next episode is still to come (the card counts down on the last frame). */

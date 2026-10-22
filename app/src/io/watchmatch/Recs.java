@@ -161,6 +161,10 @@ final class Recs {
     // TMDB
 
     static JSONObject get(String path) throws IOException, JSONException {
+        return get(path, 8000);
+    }
+
+    static JSONObject get(String path, int timeoutMs) throws IOException, JSONException {
         String key = Config.TMDB_KEY.trim();
         if (key.isEmpty()) throw new IOException("no TMDB key");
         boolean bearer = key.startsWith("eyJ");
@@ -168,8 +172,8 @@ final class Recs {
         if (!bearer) url += (path.contains("?") ? "&" : "?") + "api_key=" + URLEncoder.encode(key, "UTF-8");
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         try {
-            c.setConnectTimeout(8000);
-            c.setReadTimeout(8000);
+            c.setConnectTimeout(timeoutMs);
+            c.setReadTimeout(timeoutMs);
             c.setRequestProperty("Accept", "application/json");
             if (bearer) c.setRequestProperty("Authorization", "Bearer " + key);
             int code = c.getResponseCode();

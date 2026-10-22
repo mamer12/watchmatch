@@ -136,16 +136,48 @@ final class Progress {
         Durable.save(prefs(c), prefs(c).edit().clear());
     }
 
+    /** Continue watching keeps up to this many titles; nothing leaves it by age, only by being finished or removed. */
+    static final int CONTINUE_MAX = 20;
+
     /** Continue watching: unfinished videos and up-next episodes, newest first, one per series. */
     static List<Entry> unfinished(Context c) {
         List<Entry> all = all(c);
         Collections.sort(all, (a, b) -> Long.compare(b.at, a.at));
+        return select(all, CONTINUE_MAX);
+    }
+
+    /**
+     * One entry per series from `newestFirst`: the newest one when it is unfinished or an up-next; when the newest is a
+     * finished episode, the series' waiting up-next episode instead (it can be older: the finished one was saved after it).
+     */
+    static List<Entry> select(List<Entry> newestFirst, int max) {
         List<Entry> out = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
-        for (Entry e : all) {
+        Set<String> done = new HashSet<>();
+        for (Entry e : newestFirst) {
             String group = e.title.rootId.isEmpty() ? e.title.id : e.title.rootId;
-            if (!seen.add(group)) continue;      // a newer episode of this series came first
-            if (!e.hidden && (e.upNext || e.unfinished())) out.add(e);
+            if (done.contains(group)) continue;
+            if (e.hidden) {
+                done.add(group);
+                continue;
+            }
+            if (e.upNext || e.unfinished()) {
+                done.add(group);
+                out.add(e);
+            } else if (e.finished()) {
+                Entry waiting = null;
+                for (Entry u : newestFirst) {
+                    String g = u.title.rootId.isEmpty() ? u.title.id : u.title.rootId;
+                    if (u.upNext && !u.hidden && g.equals(group)) {
+                        waiting = u;
+                        break;
+                    }
+                }
+                done.add(group);
+                if (waiting != null) out.add(waiting);
+            } else {
+                done.add(group);
+            }
+            if (out.size() >= max) break;
         }
         return out;
     }
