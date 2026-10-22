@@ -56,6 +56,15 @@ public final class AccountRulesCheck {
         eq("a session with no email is a guest", AccountRules.MODE_GUEST, AccountRules.mode(true, ""));
         eq("a session with no email (null) is a guest", AccountRules.MODE_GUEST, AccountRules.mode(true, null));
         eq("an email makes it an account", AccountRules.MODE_ACCOUNT, AccountRules.mode(true, "a@b.co"));
+        eq("a guest a phone linked is 'linked'", AccountRules.MODE_LINKED, AccountRules.mode(true, "", true));
+        eq("an unlinked guest stays a guest", AccountRules.MODE_GUEST, AccountRules.mode(true, "", false));
+        eq("no session is nobody even with the link flag", AccountRules.MODE_NONE, AccountRules.mode(false, "", true));
+        eq("an account stays an account", AccountRules.MODE_ACCOUNT, AccountRules.mode(true, "a@b.co", true));
+        eq("only an email account can change the password or delete", true, AccountRules.emailActions(AccountRules.MODE_ACCOUNT));
+        eq("a linked TV manages its account elsewhere", false, AccountRules.emailActions(AccountRules.MODE_LINKED));
+        eq("a guest has no email actions", false, AccountRules.emailActions(AccountRules.MODE_GUEST));
+        eq("a rate limit from the device login RPC is 'rate'", AccountRules.E_RATE, AccountRules.error(400, "too_many_requests"));
+        eq("a device login RPC not applied is 'unavailable'", AccountRules.E_UNAVAILABLE, AccountRules.error(404, "PGRST202 Could not find the function"));
     }
 
     private static void startPlans() {

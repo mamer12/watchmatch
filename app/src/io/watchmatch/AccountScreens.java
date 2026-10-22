@@ -1,5 +1,6 @@
 package io.watchmatch;
 
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.os.SystemClock;
@@ -22,10 +23,11 @@ final class AccountScreens {
         void accountClosed();
     }
 
-    private static final int NONE = 0, WELCOME = 1, FORM = 2, ASK = 3, WORK = 4, HOME = 5, OUT = 6, DEL = 7, WEB = 8;
+    private static final int NONE = 0, WELCOME = 1, FORM = 2, ASK = 3, WORK = 4, HOME = 5, OUT = 6, DEL = 7, WEB = 8, PHONE = 9;
     private static final int K_SIGNIN = 0, K_CREATE = 1, K_PASSWORD = 2;
     private static final int I_EMAIL = 0, I_PW = 1, I_SHOW = 2, I_SUBMIT = 3, I_FORGOT = 4;
-    private static final int H_OUT = 0, H_PASSWORD = 1, H_DELETE = 2, H_CREATE = 3, H_SIGNIN = 4;
+    private static final int H_OUT = 0, H_PASSWORD = 1, H_DELETE = 2, H_CREATE = 3, H_SIGNIN = 4, H_PHONE = 5, H_OTHER = 6;
+    private static final int QR_SIZE = 400;
 
     private final CinemaView v;
     private final CinemaSettings settings;
@@ -38,7 +40,12 @@ final class AccountScreens {
     private final AccountRules.DeleteGate gate = new AccountRules.DeleteGate();
     private final Runnable tick = this::onTick;
     private boolean tickPosted;
-    private Paint head, sub, button;
+    private Paint head, sub, button, codeFont;
+    // Sign in with the phone
+    private DeviceLogin phone;
+    private int phoneBack;
+    private Bitmap qr;
+    private String qrFor = "", codeText = "", expiresText = "";
 
     AccountScreens(CinemaView v, CinemaSettings settings, Host host) {
         this.v = v;
@@ -82,6 +89,9 @@ final class AccountScreens {
         sub.setTextAlign(Paint.Align.CENTER);
         button = Ui.text(Ui.semibold, 32 * k, 0xFFFFFFFF);
         button.setTextAlign(Paint.Align.CENTER);
+        codeFont = Ui.text(Ui.displaySemibold, 64 * k, 0xFFFFFFFF);
+        codeFont.setTextAlign(Paint.Align.CENTER);
+        codeFont.setLetterSpacing(0.06f);
         keyboard.sizeChanged();
     }
 
@@ -117,6 +127,7 @@ final class AccountScreens {
     }
 
     private void close() {
+        closePhone();
         screen = NONE;
         pending = working = false;
         wipe(pwBuf);
@@ -257,6 +268,7 @@ final class AccountScreens {
             case OUT: confirmKey(code, false); break;
             case DEL: confirmKey(code, true); break;
             case WEB: if (code == KeyEvent.KEYCODE_BACK || isOk(code)) screen = FORM; break;
+            case PHONE: phoneKey(code); break;
             default:      // WORK: nothing to press
         }
         v.kickNow();
@@ -269,16 +281,18 @@ final class AccountScreens {
 
     private void welcomeKey(int code) {
         if (code == KeyEvent.KEYCODE_DPAD_UP) focus = Math.max(0, focus - 1);
-        else if (code == KeyEvent.KEYCODE_DPAD_DOWN) focus = Math.min(2, focus + 1);
+        else if (code == KeyEvent.KEYCODE_DPAD_DOWN) focus = Math.min(3, focus + 1);
         else if (code == KeyEvent.KEYCODE_BACK) host.exitWatchme();
         else if (isOk(code)) {
-            if (focus == 2) {
+            if (focus == 0) {
+                openPhone(WELCOME);
+            } else if (focus == 3) {
                 Account.markGuest(v.getContext());
                 close();
                 host.accountDone(true);
             } else {
                 from = WELCOME;
-                openForm(focus == 0 ? K_SIGNIN : K_CREATE);
+                openForm(focus == 1 ? K_SIGNIN : K_CREATE);
             }
         }
     }
@@ -363,7 +377,9 @@ final class AccountScreens {
     }
 
     private int[] homeRows() {
-        return Account.signedInEmail(v.getContext()).isEmpty() ? new int[] {H_CREATE, H_SIGNIN} : new int[] {H_OUT, H_PASSWORD, H_DELETE};
+        android.content.Context c = v.getContext();
+        if (!Account.signedInEmail(c).isEmpty()) return new int[] {H_OUT, H_PASSWORD, H_DELETE};
+        return Account.linkedByPhone(c) ? new int[] {H_OUT, H_OTHER} : new int[] {H_PHONE, H_CREATE, H_SIGNIN};
     }
 
     private void homeKey(int code) {
@@ -376,6 +392,10 @@ final class AccountScreens {
             host.accountClosed();
         } else if (isOk(code)) {
             switch (rows[focus]) {
+                case H_PHONE:
+                case H_OTHER:
+                    openPhone(HOME);
+                    break;
                 case H_CREATE:
                     openForm(K_CREATE);
                     break;
@@ -442,6 +462,79 @@ final class AccountScreens {
         }
     }
 
+    // MARK: - Sign in with the phone
+
+    /** Settings, Sync (a guest's "Sign in with your phone"): the same screen, then the profile picker. */
+    void openPhoneFromSettings() {
+        atStart = false;
+        openPhone(NONE);
+    }
+
+    private void openPhone(int back) {
+        closePhone();
+        phoneBack = back;
+        screen = PHONE;
+        focus = 0;
+        message = "";
+        phone = new DeviceLogin(v.getContext(), this::onPhoneChanged);
+        phone.open();
+        v.kickNow();
+    }
+
+    private void closePhone() {
+        if (phone != null) phone.close();
+        phone = null;
+        if (qr != null) qr.recycle();
+        qr = null;
+        qrFor = codeText = expiresText = "";
+    }
+
+    private void leavePhone() {
+        closePhone();
+        if (phoneBack == NONE) {
+            close();
+            host.accountClosed();
+        } else {
+            screen = phoneBack;
+            focus = 0;
+        }
+    }
+
+    /** The flow moved (a code, a second, an answer): what is drawn is prepared here, so drawing makes nothing. */
+    private void onPhoneChanged() {
+        if (screen != PHONE || phone == null) return;
+        DeviceLoginRules.Flow f = phone.flow();
+        if (f.state == DeviceLoginRules.READY) {
+            boolean start = atStart;
+            close();
+            host.accountDone(start);
+            return;
+        }
+        if (f.state == DeviceLoginRules.PENDING) {
+            if (!f.code.equals(qrFor)) {
+                if (qr != null) qr.recycle();
+                qrFor = f.code;
+                codeText = DeviceLoginRules.group(f.code);
+                qr = QrBitmap.make(DeviceLoginRules.qrUrl(Config.SITE_URL, f.code), Math.round(QR_SIZE * v.k));
+            }
+            expiresText = DeviceLoginText.expiresIn(DeviceLoginRules.clock(f.remaining(SystemClock.elapsedRealtime())));
+        }
+        v.kickNow();
+    }
+
+    private void phoneKey(int code) {
+        DeviceLoginRules.Flow f = phone == null ? null : phone.flow();
+        if (f == null || f.state == DeviceLoginRules.LINKING) return;      // the TV is being signed in: nothing to press
+        if (f.state == DeviceLoginRules.ASK) {
+            int d = Ui.dpad(code);
+            if (d == KeyEvent.KEYCODE_DPAD_LEFT || d == KeyEvent.KEYCODE_DPAD_RIGHT) focus = 1 - focus;
+            else if (isOk(code)) phone.chooseData(focus == 0);
+            return;      // Back does nothing here: the phone already approved, so the TV must be told what to do with its data
+        }
+        if (code == KeyEvent.KEYCODE_BACK) leavePhone();
+        else if (isOk(code) && f.state == DeviceLoginRules.ERROR) phone.retry();
+    }
+
     private void onTick() {
         tickPosted = false;
         if (screen != DEL || !gate.armed()) return;
@@ -467,6 +560,7 @@ final class AccountScreens {
             case HOME: drawHome(c); break;
             case OUT: drawOut(c); break;
             case DEL: drawDelete(c); break;
+            case PHONE: drawPhone(c); break;
             default: drawWeb(c);
         }
     }
@@ -502,13 +596,43 @@ final class AccountScreens {
         float k = v.k;
         c.drawText(Ui.tr("Bem-vindo ao {catalog}", "Welcome to {catalog}", "Te damos la bienvenida a {catalog}", "مرحباً بك في {catalog}"),
                 v.w / 2f, 300 * k, head);
-        c.drawText(Ui.tr("Use o mesmo e-mail e senha em todos os aparelhos: perfis e progresso vão junto.",
-                "Use the same email and password on every device: your profiles and progress go with you.",
-                "Usa el mismo correo y contraseña en todos tus dispositivos: tus perfiles y progreso te acompañan.",
-                "استخدم البريد وكلمة المرور نفسيهما على كل جهاز: ملفاتك وتقدمك يرافقانك."), v.w / 2f, 370 * k, sub);
-        String[] names = {AccountText.signIn(), AccountText.create(), AccountText.guest()};
+        c.drawText(DeviceLoginText.welcomeLine(), v.w / 2f, 370 * k, sub);
+        String[] names = {DeviceLoginText.phone(), DeviceLoginText.emailPassword(), AccountText.create(), AccountText.guest()};
         float w = 680;
-        for (int i = 0; i < names.length; i++) drawButton(c, (1920 - w) / 2, 460 + i * 110, w, names[i], focus == i, false, false);
+        for (int i = 0; i < names.length; i++) drawButton(c, (1920 - w) / 2, 440 + i * 108, w, names[i], focus == i, false, false);
+    }
+
+    private void drawPhone(Canvas c) {
+        float k = v.k;
+        DeviceLoginRules.Flow f = phone == null ? new DeviceLoginRules.Flow() : phone.flow();
+        if (f.state == DeviceLoginRules.ASK) {
+            drawAsk(c);
+            return;
+        }
+        if (f.state == DeviceLoginRules.LINKING) {
+            c.drawText(f.fetching ? Ui.tr("Buscando seus perfis…", "Getting your profiles…", "Obteniendo tus perfiles…", "جارٍ جلب ملفاتك…")
+                    : DeviceLoginText.signingIn(), v.w / 2f, 520 * k, head);
+            return;
+        }
+        headline(c, DeviceLoginText.title(), 200);
+        String[] steps = DeviceLoginText.steps();
+        for (int i = 0; i < steps.length; i++) line(c, steps[i], 340 + i * 64);
+        float size = QR_SIZE * k, x = CinemaView.L * k;
+        float qx = Ui.rtl ? x : v.w - x - size, qy = 270 * k;
+        if (f.state == DeviceLoginRules.PENDING) {
+            if (qr != null) {
+                v.rect.set(qx, qy, qx + size, qy + size);
+                c.drawBitmap(qr, null, v.rect, null);
+            }
+            c.drawText(codeText, qx + size / 2, qy + size + 90 * k, codeFont);
+            note(c, expiresText, 560, 0x99FFFFFF);
+            if (f.offline) note(c, DeviceLoginText.offline(), 620, 0xFFFFB4A8);
+        } else if (f.state == DeviceLoginRules.ERROR) {
+            note(c, DeviceLoginText.error(f.error), 560, 0xFFFFB4A8);
+            drawButton(c, CinemaView.L, 640, 420, DeviceLoginText.retry(), true, false, false);
+        } else {
+            note(c, DeviceLoginText.gettingCode(), 560, 0x99FFFFFF);
+        }
     }
 
     private void drawWork(Canvas c) {
@@ -640,15 +764,17 @@ final class AccountScreens {
 
     private void drawHome(Canvas c) {
         float k = v.k;
-        String email = Account.signedInEmail(v.getContext());
         headline(c, AccountText.account(), 200);
-        line(c, AccountText.status(email), 290);
+        line(c, DeviceLoginText.status(v.getContext()), 290);
         int[] rows = homeRows();
         focus = Math.min(focus, rows.length - 1);
         for (int i = 0; i < rows.length; i++) {
             String label;
             switch (rows[i]) {
-                case H_OUT: label = Ui.tr("Sair", "Sign out", "Cerrar sesión", "تسجيل الخروج"); break;
+                case H_OUT: label = Account.linkedByPhone(v.getContext()) ? DeviceLoginText.signOutTv()
+                        : Ui.tr("Sair", "Sign out", "Cerrar sesión", "تسجيل الخروج"); break;
+                case H_PHONE: label = DeviceLoginText.phone(); break;
+                case H_OTHER: label = DeviceLoginText.linkOther(); break;
                 case H_PASSWORD: label = Ui.tr("Mudar senha", "Change password", "Cambiar contraseña", "تغيير كلمة المرور"); break;
                 case H_DELETE: label = Ui.tr("Excluir conta", "Delete account", "Eliminar cuenta", "حذف الحساب"); break;
                 case H_CREATE: label = AccountText.create(); break;
@@ -662,6 +788,11 @@ final class AccountScreens {
                     "Your data stays in your account. This TV forgets its profiles and lists.",
                     "Tus datos siguen en tu cuenta. Este TV olvida los perfiles y listas.",
                     "تبقى بياناتك في حسابك. ينسى هذا التلفاز الملفات والقوائم."); break;
+            case H_PHONE: help = DeviceLoginText.phoneHelp(); break;
+            case H_OTHER: help = Ui.tr("Mostra o QR code de novo para vincular esta TV a outra conta.",
+                    "Shows the QR code again to link this TV to a different account.",
+                    "Muestra el código QR otra vez para vincular este TV a otra cuenta.",
+                    "يعرض رمز QR مجدداً لربط هذا التلفاز بحساب آخر."); break;
             case H_DELETE: help = Ui.tr("Apaga a conta e tudo nela, em todos os aparelhos.", "Deletes the account and everything in it, on every device.",
                     "Elimina la cuenta y todo lo que tiene, en todos los dispositivos.", "يحذف الحساب وكل ما فيه على جميع الأجهزة."); break;
             case H_CREATE: help = Ui.tr("Entre com o mesmo e-mail e senha em qualquer aparelho: perfis e progresso vão junto.",
@@ -673,6 +804,7 @@ final class AccountScreens {
             default: help = "";
         }
         note(c, help, 360 + 5 * CinemaSettings.ROW_H + 30, 0x99FFFFFF);
+        if (Account.linkedByPhone(v.getContext())) note(c, DeviceLoginText.manage(), 360 + 5 * CinemaSettings.ROW_H + 90, 0x99FFFFFF);
     }
 
     private void drawButtons(Canvas c, String[] names, float top, boolean[] red, boolean[] dim) {
@@ -685,9 +817,8 @@ final class AccountScreens {
     }
 
     private void drawOut(Canvas c) {
-        String email = Account.signedInEmail(v.getContext());
         headline(c, Ui.tr("Sair da conta?", "Sign out?", "¿Cerrar sesión?", "تسجيل الخروج؟"), 300);
-        line(c, "•  " + AccountText.status(email), 390);
+        line(c, "•  " + DeviceLoginText.status(v.getContext()), 390);
         line(c, "•  " + Ui.tr("Seus dados continuam na sua conta.", "Your data stays in your account.", "Tus datos siguen en tu cuenta.",
                 "تبقى بياناتك في حسابك."), 446);
         line(c, "•  " + Ui.tr("Esta TV esquece os perfis, listas e progresso e volta à tela de boas-vindas.",

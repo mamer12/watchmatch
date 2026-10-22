@@ -598,6 +598,11 @@ final class CinemaView extends View implements Choreographer.FrameCallback, Thum
         return account.start();
     }
 
+    @Override public void signInWithPhone() {
+        host.preview(null, null);
+        account.openPhoneFromSettings();
+    }
+
     @Override public void manageAccount() {
         host.preview(null, null);
         account.openHome();

@@ -531,6 +531,7 @@ final class Sync {
                 AppLog.w("sync leave: " + e.getMessage());      // offline: the server forgets us with its clean-up
             }
             clearLocal();
+            Account.forgetPhoneLink(app);
             return Boolean.TRUE;
         });
     }

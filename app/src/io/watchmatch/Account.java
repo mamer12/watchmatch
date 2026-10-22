@@ -45,7 +45,7 @@ final class Account {
     // ---- what is kept: the email and whether guest was chosen -----------------------------------
 
     private static String email = "";
-    private static boolean guest;
+    private static boolean guest, linkedByPhone;
     private static long stamp = -1, length = -1;
 
     private static File file(Context c) {
@@ -60,20 +60,26 @@ final class Account {
         length = l;
         email = "";
         guest = false;
+        linkedByPhone = false;
         String text = Durable.read(f);
         if (text == null) return;
         try {
             java.util.Map<String, Object> m = MiniJson.map(MiniJson.parse(text));
             email = AccountRules.cleanEmail(MiniJson.str(m.get("email")));
             guest = MiniJson.bool(m.get("guest"));
+            linkedByPhone = MiniJson.bool(m.get("linked"));
         } catch (RuntimeException e) {
             email = "";
         }
     }
 
-    private static synchronized void save(Context c, String mail, boolean chosenGuest) {
+    private static void save(Context c, String mail, boolean chosenGuest) {
+        save(c, mail, chosenGuest, false);
+    }
+
+    private static synchronized void save(Context c, String mail, boolean chosenGuest, boolean byPhone) {
         try {
-            Durable.write(file(c), MiniJson.write(MiniJson.obj("email", mail, "guest", chosenGuest)));
+            Durable.write(file(c), MiniJson.write(MiniJson.obj("email", mail, "guest", chosenGuest, "linked", byPhone)));
         } catch (Exception e) {
             AppLog.w("account marker not saved: " + e.getClass().getSimpleName());
         }
@@ -99,7 +105,19 @@ final class Account {
     /** Reset {catalog} data ends the session: the email goes, the choice of guest stays. */
     static void forgetEmail(Context c) {
         load(c);
-        if (!email.isEmpty()) save(c, "", guest);
+        if (!email.isEmpty() || linkedByPhone) save(c, "", guest);
+    }
+
+    /** This TV was linked to an account with a phone (it is a guest-user member of the account's space). Any process. */
+    static boolean linkedByPhone(Context c) {
+        load(c);
+        return linkedByPhone && email.isEmpty();
+    }
+
+    /** The link is gone (Disconnect this TV): the TV is a plain guest again. */
+    static void forgetPhoneLink(Context c) {
+        load(c);
+        if (linkedByPhone) save(c, email, guest);
     }
 
     /** Who is signed in: an account's email, "" for a guest or nobody. */
@@ -115,7 +133,7 @@ final class Account {
     }
 
     static int mode(Context c) {
-        return AccountRules.mode(hasSession(), signedInEmail(c));
+        return AccountRules.mode(hasSession(), signedInEmail(c), linkedByPhone(c));
     }
 
     /** Accounts exist in this build, in this process. */
@@ -259,6 +277,26 @@ final class Account {
         }
     }
 
+    // ---- sign in with the phone (DeviceLogin) -------------------------------------------------
+
+    /**
+     * Sync thread. The phone approved: the server already moved this TV's guest membership into the account's space, so
+     * the guest session stays. Same space: keep going. Otherwise the TV's own data is merged (it stays and the first sync
+     * joins it with the account's) or cleared first, then the first sync brings the account's profiles in.
+     */
+    static void finishDeviceLink(Context c, String space, int step, boolean addData) {
+        int plan = AccountRules.linkPlan(step, addData);
+        String device = Sync.defaultDeviceName();
+        if (plan == AccountRules.LINK_KEEP_STATE) {
+            Sync.syncNow();
+        } else {
+            if (plan == AccountRules.LINK_FRESH) WatchmeReset.runLocal(c);
+            Sync.linkTo(space, device);
+        }
+        save(c, "", guestChosen(c), true);
+        markWelcomed(c);
+    }
+
     // ---- create -----------------------------------------------------------------------------
 
     /** Create account: a guest becomes the account in place (same user, same space, same data); with no session it signs up. */
@@ -295,9 +333,18 @@ final class Account {
     static void signOut(final Context c, Done cb) {
         final Context app = c.getApplicationContext();
         run("sign-out", cb, () -> {
+            final boolean byPhone = linkedByPhone(app);
             wipe(app, () -> {
                 SyncClient cl = Sync.client();
-                if (cl != null && cl.signedIn()) cl.logout();
+                if (cl == null || !cl.signedIn()) return;
+                if (byPhone) {
+                    try {
+                        cl.rpc("leave_space", null, false);     // this TV stops being a member of the account's space
+                    } catch (SyncClient.HttpException e) {
+                        AppLog.w("account: space not left: " + e.status);      // the server's clean-up forgets it
+                    }
+                }
+                cl.logout();
             });
             return OK;
         });

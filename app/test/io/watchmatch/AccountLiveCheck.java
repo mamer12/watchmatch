@@ -156,6 +156,8 @@ public final class AccountLiveCheck {
         check("a guest cannot upgrade with a weak password ('weak', or 'confirm' when the project confirms)", "weak".equals(weak) || ("confirm".equals(weak) && !autoconfirm), weak);
         check("it is still the same guest", guest.client.email().isEmpty() && guestId.equals(guest.store.s.userId), "");
 
+        deviceLogin(guest);
+
         // Is delete_my_account applied? (A throwaway guest: if it exists, the guest is gone.)
         boolean canDelete;
         try {
@@ -186,6 +188,27 @@ public final class AccountLiveCheck {
             return;
         }
         journey(url, key, email, password, changed, canDelete);
+    }
+
+    /** Sign in with the phone, the TV's half: SKIPs when the SQL is not applied. The phone's approval needs an account, so it is not run here. */
+    private static void deviceLogin(Dev tv) {
+        String code;
+        try {
+            Object r = tv.client.rpc("request_device_login", MiniJson.obj("device_name", "TV check"), false);
+            code = r instanceof String ? (String) r : "";
+        } catch (SyncClient.HttpException e) {
+            String why = AccountRules.error(e.status, e.getMessage());
+            if ("unavailable".equals(why)) skip("device login", "request_device_login is not applied yet");
+            else check("request_device_login answers", false, e.status + " " + why);
+            return;
+        }
+        check("request_device_login gives an 8-letter code from the pairing alphabet", SyncRules.isCompleteCode(code), "");
+        try {
+            Object r = tv.client.rpc("check_device_login", null, false);
+            check("check_device_login is null while the code waits", r == null, "");
+        } catch (SyncClient.HttpException e) {
+            check("check_device_login answers", false, e.status + " " + AccountRules.error(e.status, e.getMessage()));
+        }
     }
 
     private static void journey(String url, String key, String email, String password, String changed, boolean canDelete) throws Exception {

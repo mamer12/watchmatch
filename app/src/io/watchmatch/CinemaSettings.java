@@ -20,6 +20,8 @@ final class CinemaSettings {
         void manageProfiles();
         /** The Account row: sign in, create, sign out... */
         void manageAccount();
+        /** A guest's "Sign in with your phone" (Sync): the QR screen, then the profiles. */
+        void signInWithPhone();
     }
 
     static final float TOP = 250, ROW_H = 58, WIDTH = 1100;
@@ -92,6 +94,12 @@ final class CinemaSettings {
     Paint labelFont() { return labelFont; }
     Paint valueFont() { return valueFont; }
     Paint helpFont() { return helpFont; }
+
+    /** Sync's "Sign in with your phone": Sync closes, the account screens take over. */
+    void signInWithPhone() {
+        sync.close();
+        listener.signInWithPhone();
+    }
 
     boolean isOpen() {
         return open;
@@ -350,7 +358,7 @@ final class CinemaSettings {
             case S_SYNC: return Sync.statusLine();
             case S_ACCOUNT: {
                 String email = Account.signedInEmail(c);
-                return email.isEmpty() ? AccountText.status("") : Ui.isolate(email);
+                return email.isEmpty() ? DeviceLoginText.status(c) : Ui.isolate(email);
             }
             default: return confirmClear ? Ui.tr("OK de novo para apagar", "Press OK again to clear", "OK otra vez para borrar") : "";
         }
@@ -364,7 +372,8 @@ final class CinemaSettings {
                     "هذا ملف أطفال: فلتر العائلة وتخطي المشاهد الحساسة مفعّلان دائماً.");
         }
         switch (i) {
-            case S_ACCOUNT: return Account.signedInEmail(v.getContext()).isEmpty()
+            case S_ACCOUNT: return Account.linkedByPhone(v.getContext()) ? DeviceLoginText.manage()
+                    : Account.signedInEmail(v.getContext()).isEmpty()
                     ? Ui.tr("Crie uma conta para usar os mesmos perfis e progresso em todos os aparelhos.",
                             "Create an account to use the same profiles and progress on every device.",
                             "Crea una cuenta para usar los mismos perfiles y progreso en todos tus dispositivos.",

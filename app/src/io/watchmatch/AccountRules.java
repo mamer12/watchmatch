@@ -15,12 +15,23 @@ final class AccountRules {
 
     // ---- who is using this TV ---------------------------------------------------------------
 
-    static final int MODE_NONE = 0, MODE_GUEST = 1, MODE_ACCOUNT = 2;
+    static final int MODE_NONE = 0, MODE_GUEST = 1, MODE_ACCOUNT = 2, MODE_LINKED = 3;
 
     /** No session: nothing yet. A session with no email: a guest. With an email: an account. */
     static int mode(boolean hasSession, String email) {
         if (!hasSession) return MODE_NONE;
         return email == null || email.isEmpty() ? MODE_GUEST : MODE_ACCOUNT;
+    }
+
+    /** As above, and a guest session that a phone linked to an account is MODE_LINKED (no email is known on the TV). */
+    static int mode(boolean hasSession, String email, boolean linkedByPhone) {
+        int m = mode(hasSession, email);
+        return m == MODE_GUEST && linkedByPhone ? MODE_LINKED : m;
+    }
+
+    /** What Settings, Account offers: a linked TV manages its account elsewhere (no password or delete here). */
+    static boolean emailActions(int mode) {
+        return mode == MODE_ACCOUNT;
     }
 
     // ---- the start --------------------------------------------------------------------------

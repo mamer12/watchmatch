@@ -2,7 +2,6 @@ package io.watchmatch;
 
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
 import android.os.SystemClock;
 import android.view.KeyEvent;
@@ -17,7 +16,7 @@ import java.util.List;
  */
 final class SyncScreens {
     private static final int MAIN = 0, CODE = 1, JOIN = 2, CONFIRM = 3;
-    private static final int R_START = 0, R_JOIN = 1, R_NOW = 2, R_ADD = 3, R_DISCONNECT = 4, R_DELETE = 5;
+    private static final int R_START = 0, R_JOIN = 1, R_NOW = 2, R_ADD = 3, R_DISCONNECT = 4, R_DELETE = 5, R_PHONE = 6;
     private static final int KEY_COLUMNS = 8, KEY_W = 100, KEY_H = 70, KEY_GAP = 10;
     /** Pairing codes use these (no 0, O, 1, I, L), then the delete key. */
     private static final String KEYS = SyncRules.CODE_ALPHABET;
@@ -217,7 +216,9 @@ final class SyncScreens {
     }
 
     private int[] rows() {
-        return Sync.isLinked() ? new int[] {R_NOW, R_ADD, R_DISCONNECT, R_DELETE} : new int[] {R_START, R_JOIN};
+        boolean guest = Account.signedInEmail(v.getContext()).isEmpty();      // an account's TV has no use for the phone link
+        if (Sync.isLinked()) return guest ? new int[] {R_NOW, R_PHONE, R_ADD, R_DISCONNECT, R_DELETE} : new int[] {R_NOW, R_ADD, R_DISCONNECT, R_DELETE};
+        return new int[] {R_START, R_JOIN, R_PHONE};
     }
 
     private boolean mainKey(int code) {
@@ -238,6 +239,7 @@ final class SyncScreens {
                     break;
                 case R_NOW: Sync.syncNow(); break;
                 case R_ADD: showCode(); break;
+                case R_PHONE: host.signInWithPhone(); break;
                 case R_DISCONNECT:
                 case R_DELETE:
                     screen = CONFIRM;
@@ -400,6 +402,7 @@ final class SyncScreens {
                     "بدء المزامنة على هذا التلفاز");
             case R_JOIN: return Ui.tr("Entrar com um código", "Join with a code", "Unirse con un código", "الانضمام برمز");
             case R_NOW: return Ui.tr("Sincronizar agora", "Sync now", "Sincronizar ahora", "مزامنة الآن");
+            case R_PHONE: return DeviceLoginText.phone();
             case R_ADD: return Ui.tr("Vincular um aparelho visitante", "Link a guest device", "Vincular un dispositivo invitado", "ربط جهاز ضيف");
             case R_DISCONNECT: return Ui.tr("Desconectar esta TV", "Disconnect this TV", "Desconectar este TV", "فصل هذا التلفاز");
             default: return Ui.tr("Apagar todos os dados sincronizados", "Delete all synced data", "Borrar todos los datos sincronizados",
@@ -529,27 +532,7 @@ final class SyncScreens {
 
     // MARK: - The QR code
 
-    /** The link as a QR code, black on white with a four-module quiet zone; null when it can't be made (the code shows alone). */
     private Bitmap qrBitmap(String text) {
-        try {
-            boolean[][] m = Qr.encode(text);
-            if (m == null) return null;
-            int quiet = 4, modules = m.length + 2 * quiet;
-            int px = Math.max(1, Math.round(QR_SIZE * v.k) / modules);
-            Bitmap b = Bitmap.createBitmap(modules * px, modules * px, Bitmap.Config.ARGB_8888);
-            b.eraseColor(Color.WHITE);
-            Canvas c = new Canvas(b);
-            Paint dark = new Paint();
-            dark.setColor(Color.BLACK);
-            for (int y = 0; y < m.length; y++) {
-                for (int x = 0; x < m.length; x++) {
-                    if (m[y][x]) c.drawRect((x + quiet) * px, (y + quiet) * px, (x + quiet + 1) * px, (y + quiet + 1) * px, dark);
-                }
-            }
-            return b;
-        } catch (RuntimeException | OutOfMemoryError e) {
-            AppLog.w("qr not made: " + e);
-            return null;
-        }
+        return QrBitmap.make(text, Math.round(QR_SIZE * v.k));
     }
 }
