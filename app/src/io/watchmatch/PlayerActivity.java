@@ -40,7 +40,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
             EXTRA_AT = "at";
     static final int DEFAULT_HEIGHT = 1080;
     /** The place is kept every few seconds (an app update or a power cut can end playing without a goodbye). */
-    private static final long STARTED_SAVE_MS = 3_500, SAVE_EVERY_MS = 5_000, SEEK_SETTLE_MS = 700, NEXT_UP_MS = 40_000, WATCH_MS = 250;
+    private static final long STARTED_SAVE_MS = 3_500, SAVE_EVERY_MS = 5_000, SEEK_SETTLE_MS = 700, WATCH_MS = 250;
     private static final long AUTO_MS = 1000;
     private static final ExecutorService LOADER = Executors.newSingleThreadExecutor();
 
@@ -59,7 +59,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     /** The player on screen (the only one, but for a swap's few seconds): read it through activePlayer(). */
     private MediaPlayer active;
     private Streamer streamer;
-    private boolean surfaceReady, prepared, resumed, upNextSaved, rendered;
+    private boolean surfaceReady, prepared, resumed, upNextSaved, rendered, ended;
     private int generation;           // bumped per video: answers for an older one are dropped
 
     // Automatic quality
@@ -203,6 +203,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         prepared = false;
         triedDirect = false;
         upNextSaved = false;
+        ended = false;
         subtitles = null;
         subtitleOffset = 0;
         audioTracks.clear();
@@ -394,8 +395,10 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         if (t != null) Progress.save(this, t, rootTitle(), rootPoster(), duration(), duration());
         markUpNext();
         Progress.flush(this);
-        if (hasNext() && CinemaPrefs.autoplay(this)) next();
-        else finish();
+        boolean autoplay = CinemaPrefs.autoplay(this);
+        if (!NextUpRules.playNextAtEnd(hasNext(), autoplay, overlay.nextDismissed())) finish();
+        else if (overlay.nextShown()) next();       // the countdown had started: it ends with the video
+        else ended = true;                          // no card yet: it shows now, with its countdown
     }
 
     void next() {
@@ -435,7 +438,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
                 }
             }
         }
-        if (!upNextSaved && d > 0 && d - p < NEXT_UP_MS) markUpNext();
+        if (!upNextSaved && NextUpRules.showing(hasNext(), d, p, -1)) markUpNext();
     }
 
     /** Family mode from the player's buttons: says what it will do for this title, and skips a marked scene at once. */
@@ -475,10 +478,14 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         return -1;
     }
 
-    /** The last NEXT_UP_MS of an episode with one after it: the "Next episode" button. */
+    /** The credits of an episode with one after it (NextUpRules): the "Next episode" button. */
     boolean nextUp() {
-        long d = duration();
-        return hasNext() && prepared && d > 0 && d - position() < NEXT_UP_MS;
+        return prepared && (ended || NextUpRules.showing(hasNext(), duration(), position(), -1));
+    }
+
+    /** Playback reached its natural end and the next episode is still to come (the card counts down on the last frame). */
+    boolean ended() {
+        return ended;
     }
 
     void skipTo(long ms) {

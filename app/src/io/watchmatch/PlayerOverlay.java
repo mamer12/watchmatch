@@ -752,9 +752,19 @@ final class PlayerOverlay extends View {
         return nextUpSince != 0 && !creditsChosen && CinemaPrefs.autoplay(getContext()) && up - nextUpSince < NEXT_COUNTDOWN_MS;
     }
 
+    /** Back chose the credits: no autoplay for this episode. */
+    boolean nextDismissed() {
+        return creditsChosen;
+    }
+
+    /** The countdown or the card had already started. */
+    boolean nextShown() {
+        return nextUpSince != 0;
+    }
+
     /** Netflix's credits: the Next episode button fills, then the next one plays. */
     private void countdown(long up) {
-        if (!player.nextUp() || !player.playing()) {
+        if (!player.nextUp() || !(player.playing() || player.ended())) {
             if (!player.nextUp()) {
                 nextUpSince = 0;
                 creditsChosen = false;
