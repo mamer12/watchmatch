@@ -35,6 +35,18 @@ public final class NextUpRulesCheck {
         eq("last episode: nothing at the end", false, NextUpRules.playNextAtEnd(false, true, false));
         // seeking back before cardAt hides the card again (the overlay resets the dismissal then)
         eq("seek back hides it", false, NextUpRules.showing(true, ep22, 10 * min, -1));
+        // never advances while playing: the countdown is only for the natural end, 5 s long
+        eq("countdown length", 5_000L, NextUpRules.COUNTDOWN_AT_END_MS);
+        eq("22 min: card shown, still playing, no advance", false, NextUpRules.advance(true, false, true, false, 60_000));
+        eq("2 h film card, still playing, no advance", false, NextUpRules.advance(true, false, true, false, 600_000));
+        eq("45 min, ended, 4.9 s: not yet", false, NextUpRules.advance(true, true, true, false, 4_900));
+        eq("ended, 5 s: advances", true, NextUpRules.advance(true, true, true, false, 5_000));
+        eq("ended, dismissed/cancelled: no advance", false, NextUpRules.advance(true, true, true, true, 9_000));
+        eq("ended, autoplay off: button only", false, NextUpRules.advance(true, true, false, false, 9_000));
+        eq("ended, last episode: nothing", false, NextUpRules.advance(false, true, true, false, 9_000));
+        eq("seconds left at start", 5, NextUpRules.secondsLeft(0));
+        eq("seconds left mid", 3, NextUpRules.secondsLeft(2_000));
+        eq("seconds left at the end", 1, NextUpRules.secondsLeft(4_999));
         if (failures > 0) {
             System.out.println(failures + " FAILED");
             System.exit(1);

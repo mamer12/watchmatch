@@ -109,6 +109,13 @@ final class Streamer {
         throw last != null ? last : new IOException("no ranges");
     }
 
+    /** Drops what was resolved for a file's address, so the next probe asks again (a reopen after a failure: the link may have run out). */
+    static void refresh(String address) {
+        synchronized (RESOLVED) {
+            RESOLVED.remove(address);
+        }
+    }
+
     /** Forgets a resolved link the server refused (expired or moved). */
     private static void forget(String finalUrl) {
         synchronized (RESOLVED) {
@@ -118,8 +125,8 @@ final class Streamer {
 
     private static String[] probeOne(String address) throws IOException {
         HttpURLConnection c = (HttpURLConnection) new URL(address).openConnection();
-        c.setConnectTimeout(8000);
-        c.setReadTimeout(8000);
+        c.setConnectTimeout(StreamRules.CONNECT_TIMEOUT_MS);
+        c.setReadTimeout(StreamRules.READ_TIMEOUT_MS);
         c.setRequestProperty("Range", "bytes=0-0");
         try {
             int code = c.getResponseCode();
@@ -133,8 +140,8 @@ final class Streamer {
         // No Content-Range: the size from a HEAD.
         HttpURLConnection h = (HttpURLConnection) new URL(address).openConnection();
         h.setRequestMethod("HEAD");
-        h.setConnectTimeout(8000);
-        h.setReadTimeout(8000);
+        h.setConnectTimeout(StreamRules.CONNECT_TIMEOUT_MS);
+        h.setReadTimeout(StreamRules.READ_TIMEOUT_MS);
         try {
             long size = h.getContentLengthLong();
             if (h.getResponseCode() != 200 || size <= 0) throw new IOException("no size");
@@ -196,6 +203,13 @@ final class Streamer {
         synchronized (meter) {
             meterBytes += n;
         }
+    }
+
+    private final java.util.concurrent.atomic.AtomicLong delivered = new java.util.concurrent.atomic.AtomicLong();
+
+    /** Bytes handed to the player so far, over every connection (the loading percent counts what arrives after a mark). */
+    long delivered() {
+        return delivered.get();
     }
 
     /** Bytes per second since the last call, or -1 when under 0.4 s of downloading happened since (nothing is reset then). */
@@ -273,7 +287,7 @@ final class Streamer {
                 return;
             }
             if (parallel) {
-                servePieces(out, start, end);
+                servePieces(out, start, end, s);
                 out.flush();
                 return;
             }
@@ -284,6 +298,7 @@ final class Streamer {
                 int off = (int) (pos - (long) index * CHUNK);
                 int n = (int) Math.min(data.length - off, end - pos + 1);
                 out.write(data, off, n);
+                delivered.addAndGet(n);
                 pos += n;
             }
             out.flush();
@@ -400,8 +415,24 @@ final class Streamer {
     }
 
     /** Answers the player's range: spans of at most 8 MB in a row, each one's pieces fetched together, written in order. */
-    private void servePieces(OutputStream out, long start, long end) throws IOException {
-        List<Fetch> live = new ArrayList<>();
+    private void servePieces(OutputStream out, long start, long end, final Socket player) throws IOException {
+        final List<Fetch> live = new ArrayList<>();
+        // The player closes its connection on a seek: its side is watched so the pieces still in flight stop at once
+        // (they would hold the 4-connection budget while the new range waits).
+        Thread watcher = new Thread(() -> {
+            try {
+                while (player.getInputStream().read() >= 0) {
+                    // nothing more is expected from the player
+                }
+            } catch (IOException ignored) {
+            }
+            synchronized (live) {
+                for (Fetch f : live) f.cancel();
+            }
+            if (!closed) AppLog.i("streamer: player left, pieces cancelled");
+        }, "streamer-watch");
+        watcher.setDaemon(true);
+        watcher.start();
         try {
             Fetch cur = begin(start, end, live);
             while (cur != null && !closed) {
@@ -411,11 +442,13 @@ final class Streamer {
                     if (i == cur.pieces.size() - 1 && cur.span.end < end) next = begin(cur.span.end + 1, end, live);
                     cur.pieces.get(i).writeTo(out);
                 }
-                live.remove(cur);
+                synchronized (live) { live.remove(cur); }
                 cur = next;
             }
         } finally {
-            for (Fetch f : live) f.cancel();     // the player left (a seek, or the end): free the connections
+            synchronized (live) {
+                for (Fetch f : live) f.cancel();     // the player left (a seek, or the end): free the connections
+            }
         }
     }
 
@@ -423,7 +456,7 @@ final class Streamer {
         StreamRules.Span span = StreamRules.clampSpan(from, end, total, StreamRules.MAX_RESPONSE_BYTES);
         if (span == null) return null;
         Fetch f = new Fetch(span);
-        live.add(f);
+        synchronized (live) { live.add(f); }
         f.start();
         return f;
     }
@@ -443,7 +476,12 @@ final class Streamer {
 
         @Override public void run() {
             try {
-                LINES.acquire();
+                while (!LINES.tryAcquire(200, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                    if (isCancelled()) {
+                        finish(new IOException("closed"));
+                        return;
+                    }
+                }
             } catch (InterruptedException e) {
                 finish(new IOException("interrupted"));
                 return;
@@ -489,8 +527,8 @@ final class Streamer {
             int at;
             synchronized (this) { at = filled; }
             HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-            c.setConnectTimeout(8000);
-            c.setReadTimeout(15000);
+            c.setConnectTimeout(StreamRules.CONNECT_TIMEOUT_MS);
+            c.setReadTimeout(StreamRules.READ_TIMEOUT_MS);
             c.setRequestProperty("Range", "bytes=" + (from + at) + "-" + to);
             synchronized (this) {
                 if (cancelled) throw new IOException("closed");
@@ -540,37 +578,81 @@ final class Streamer {
                 }
                 if (failed == null) {
                     out.write(buffer, written, n);
+                    delivered.addAndGet(n);
                     written += n;
                     continue;
                 }
                 if (closed || cancelled) throw failed;
                 AppLog.w("streamer piece " + from + ": " + failed.getMessage() + ", plain request");
-                plain(out, from + written, to);
+                plainRetrying(out, from + written, to);
                 return;
             }
         }
     }
 
-    /** The original request, untouched: one connection straight to the player. */
-    private void plain(OutputStream out, long from, long to) throws IOException {
+    /** The plain request, once more on a fresh connection when it fails before writing anything. */
+    private void plainRetrying(OutputStream out, long from, long to) throws IOException {
+        IOException last = null;
+        long at = from;
+        for (int attempt = 0; attempt <= StreamRules.PLAIN_RETRIES && !closed; attempt++) {
+            try {
+                at = plain(out, at, to);
+                return;
+            } catch (PlainFailure e) {
+                last = e;
+                at = e.reached;     // what reached the player stays written: the retry continues after it
+                AppLog.w("streamer plain request " + attempt + ": " + e.getMessage());
+            }
+        }
+        throw last != null ? last : new IOException("closed");
+    }
+
+    private static final class PlainFailure extends IOException {
+        final long reached;
+
+        PlainFailure(String message, long reached) {
+            super(message);
+            this.reached = reached;
+        }
+    }
+
+    /** The original request, untouched: one connection straight to the player. Returns the byte after the last one written. */
+    private long plain(OutputStream out, long from, long to) throws IOException {
+        long at = from;
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-        c.setConnectTimeout(8000);
-        c.setReadTimeout(15000);
+        c.setConnectTimeout(StreamRules.CONNECT_TIMEOUT_MS);
+        c.setReadTimeout(StreamRules.READ_TIMEOUT_MS);
         c.setRequestProperty("Range", "bytes=" + from + "-" + to);
         try {
-            if (c.getResponseCode() != 206) throw new IOException("HTTP " + c.getResponseCode());
+            int code = c.getResponseCode();
+            if (code == 403 || code == 410) forget(url);
+            if (code != 206) throw new PlainFailure("HTTP " + code, at);
             try (InputStream in = c.getInputStream()) {
                 byte[] buffer = new byte[16384];
-                long left = to - from + 1;
                 int n;
-                while (left > 0 && !closed && (n = in.read(buffer, 0, (int) Math.min(buffer.length, left))) > 0) {
-                    out.write(buffer, 0, n);
-                    left -= n;
+                while (at <= to && !closed && (n = readOrFail(in, buffer, (int) Math.min(buffer.length, to - at + 1), at)) > 0) {
+                    out.write(buffer, 0, n);     // a write failing is the player leaving: not retried
+                    delivered.addAndGet(n);
+                    counted(n);
+                    at += n;
                 }
-                if (left > 0) throw new IOException("short read");
+                if (at <= to && !closed) throw new PlainFailure("short read", at);
             }
+        } catch (PlainFailure e) {
+            throw e;
+        } catch (java.net.SocketTimeoutException | java.net.ConnectException | java.net.UnknownHostException e) {
+            throw new PlainFailure(e.getClass().getSimpleName() + " " + e.getMessage(), at);
         } finally {
             c.disconnect();
+        }
+        return at;
+    }
+
+    private static int readOrFail(InputStream in, byte[] buffer, int max, long at) throws PlainFailure {
+        try {
+            return in.read(buffer, 0, max);
+        } catch (IOException e) {
+            throw new PlainFailure(e.getClass().getSimpleName() + " " + e.getMessage(), at);
         }
     }
 
@@ -644,8 +726,8 @@ final class Streamer {
         long from = (long) index * CHUNK, to = Math.min(total, from + CHUNK) - 1;
         byte[] data = new byte[(int) (to - from + 1)];
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-        c.setConnectTimeout(8000);
-        c.setReadTimeout(15000);
+        c.setConnectTimeout(StreamRules.CONNECT_TIMEOUT_MS);
+        c.setReadTimeout(StreamRules.READ_TIMEOUT_MS);
         c.setRequestProperty("Range", "bytes=" + from + "-" + to);
         lineOpened();
         try {

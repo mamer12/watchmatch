@@ -3,11 +3,15 @@ package io.watchmatch;
 /**
  * When the "Next episode" card shows. The catalog has no credits marker, so the credits are estimated from the length:
  * 3.5% of it, between 45 s and 150 s, at the end. The card comes a few seconds into them, never before 60% of the
- * video and never later than 15 s from the end; a very short video shows it at the end. Pure Java, checked on a
- * plain JVM by NextUpRulesCheck.
+ * video and never later than 15 s from the end; a very short video shows it at the end. The card is a plain button
+ * (OK goes to the next episode at once, Back dismisses it): nothing advances while the video still plays, since the
+ * credits and an after-credits scene are part of it. Only the natural end of the video starts the countdown
+ * (COUNTDOWN_AT_END_MS) to the next episode, and only with Autoplay on and the card not dismissed. Pure Java,
+ * checked on a plain JVM by NextUpRulesCheck.
  */
 final class NextUpRules {
-    static final long MIN_CREDITS_MS = 45_000, MAX_CREDITS_MS = 150_000, CARD_DELAY_MS = 8_000, END_MARGIN_MS = 15_000;
+    static final long MIN_CREDITS_MS = 45_000, MAX_CREDITS_MS = 150_000, CARD_DELAY_MS = 8_000, END_MARGIN_MS = 15_000,
+            COUNTDOWN_AT_END_MS = 5_000;
     static final float CREDITS_SHARE = 0.035f, EARLIEST_SHARE = 0.6f;
 
     private NextUpRules() {
@@ -35,6 +39,16 @@ final class NextUpRules {
     /** The countdown may run: Autoplay is on and the card wasn't dismissed. */
     static boolean counts(boolean autoplay, boolean dismissed) {
         return autoplay && !dismissed;
+    }
+
+    /** The countdown's next episode starts now: only once the video has ended, the countdown ran out and it may count. */
+    static boolean advance(boolean hasNext, boolean ended, boolean autoplay, boolean dismissed, long countingMs) {
+        return hasNext && ended && counts(autoplay, dismissed) && countingMs >= COUNTDOWN_AT_END_MS;
+    }
+
+    /** Whole seconds left on the countdown (5, 4, ... 1), for "Next episode in 5". */
+    static int secondsLeft(long countingMs) {
+        return (int) Math.max(1, Math.min(COUNTDOWN_AT_END_MS / 1000, (COUNTDOWN_AT_END_MS - countingMs + 999) / 1000));
     }
 
     /** At the natural end: play the next one only if there is one, Autoplay is on and the card wasn't dismissed. */

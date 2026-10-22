@@ -43,7 +43,7 @@ final class PlayerOverlay extends View {
     private static final int P_NONE = 0, P_AUDIO = 1, P_QUALITY = 2, P_EPISODES = 3, P_SPEED = 4;
     private static final float[] SPEEDS = {0.5f, 0.75f, 1f, 1.25f, 1.5f};
     /** The "Next episode" button fills over this long at the credits, then the next one plays (Back: watch credits). */
-    private static final long NEXT_COUNTDOWN_MS = 10_000;
+    private static final long NEXT_COUNTDOWN_MS = NextUpRules.COUNTDOWN_AT_END_MS;
     private static final int R_AUDIO = 0, R_SUBTITLES = 1, R_SIZE = 2, R_STYLE = 3, R_COLOR = 4, R_TIMING = 5;
 
     private final PlayerActivity player;
@@ -52,7 +52,24 @@ final class PlayerOverlay extends View {
     private boolean creditsChosen;
     private boolean loading;
     private int focusArea = F_BAR, buttonFocus, panel = P_NONE, panelRow, panelTop;
-    private String message, toast = "", shownButton;
+    private String message, toast = "", shownButton, status;
+    /** The final message offers OK to try again. */
+    private boolean retryable;
+    /** The number under the spinner, formatted only when it changes (nothing is built while drawing). */
+    private String percentText;
+    private int percentShown = -1;
+    private final Runnable percentTick = new Runnable() {
+        @Override public void run() {
+            if (!loading) return;
+            int p = player.loadPercent();
+            if (p != percentShown) {
+                percentShown = p;
+                percentText = Ui.digits(p + "%");
+                invalidate();
+            }
+            handler.postDelayed(this, LoadPercent.TICK_MS);
+        }
+    };
     private StaticLayout pauseStory;
     private float pauseStoryRight;
     private final SubtitleText subtitle;
@@ -61,7 +78,7 @@ final class PlayerOverlay extends View {
 
     private float k = 1;
     private int w, h;
-    private Paint titleFont, metaFont, timeFont, buttonFont, rowFont, valueFont, headerFont, messageFont, bigFont;
+    private Paint titleFont, metaFont, timeFont, buttonFont, rowFont, valueFont, headerFont, messageFont, bigFont, percentFont;
     private TextPaint storyText;
     private Shader bottomShade, pauseShade;
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
@@ -99,6 +116,7 @@ final class PlayerOverlay extends View {
     }
 
     void destroy() {
+        handler.removeCallbacks(percentTick);
         handler.removeCallbacks(tick);
     }
 
@@ -109,15 +127,42 @@ final class PlayerOverlay extends View {
     }
 
     void loading(boolean on) {
+        boolean began = on && !loading;
         loading = on;
         if (on) message = null;
-        if (!on) storyChanged();
+        if (began) {
+            player.loadingStarted();
+            percentShown = -1;
+            percentText = Ui.digits("0%");
+            handler.removeCallbacks(percentTick);
+            handler.postDelayed(percentTick, LoadPercent.TICK_MS);
+        }
+        if (!on) handler.removeCallbacks(percentTick);
+        if (!on) {
+            status = null;
+            storyChanged();
+        }
         invalidate();
     }
 
     void message(String text) {
         message = text;
+        retryable = false;
         loading = false;
+        status = null;
+        invalidate();
+    }
+
+    /** The final failure message, with OK to try again and Back to leave. */
+    void messageRetry(String text) {
+        message(text);
+        retryable = true;
+    }
+
+    /** The spinner with a line under it ("Reconnecting…") while the player reopens the video. */
+    void reconnecting(String text) {
+        loading(true);
+        status = text;
         invalidate();
     }
 
@@ -134,11 +179,16 @@ final class PlayerOverlay extends View {
         if (!handles(code)) return false;
         if (e.getAction() != KeyEvent.ACTION_DOWN) return true;
         if (message != null) {
-            if (code == KeyEvent.KEYCODE_BACK || isOk(code)) player.finish();
+            if (code == KeyEvent.KEYCODE_BACK) player.finish();
+            else if (isOk(code)) {
+                if (retryable) player.retry();
+                else player.finish();
+            }
             return true;
         }
-        if (code == KeyEvent.KEYCODE_BACK && counting(SystemClock.uptimeMillis())) {
-            creditsChosen = true;       // Netflix's "Watch credits": no autoplay for this episode
+        if (code == KeyEvent.KEYCODE_BACK && panel == P_NONE && player.nextUp() && !creditsChosen && player.introEnd() < 0) {
+            creditsChosen = true;       // the card is dismissed (or the end's countdown cancelled): no autoplay for this episode
+            invalidate();
             return true;
         }
         if (panel != P_NONE) panelKey(Ui.dpad(code));       // right to left: the panels and buttons are mirrored
@@ -427,6 +477,9 @@ final class PlayerOverlay extends View {
         k = w / 1920f;
         titleFont = Ui.text(Ui.displaySemibold, 44 * k, 0xFFFFFFFF);
         bigFont = Ui.text(Ui.displaySemibold, 76 * k, 0xFFFFFFFF);
+        percentFont = Ui.text(Ui.displaySemibold, 52 * k, 0xFFFFFFFF);
+        percentFont.setTextAlign(Paint.Align.CENTER);
+        percentFont.setFontFeatureSettings("tnum");
         metaFont = Ui.text(Ui.medium, 28 * k, 0xCCFFFFFF);
         timeFont = Ui.numbers(Ui.medium, 28 * k, 0xE6FFFFFF);
         buttonFont = Ui.text(Ui.semibold, 26 * k, 0xFFFFFFFF);
@@ -496,7 +549,17 @@ final class PlayerOverlay extends View {
         if (Math.abs(want - loaderLevel) < 0.01f) loaderLevel = want;
         if (loaderLevel > 0) drawLoader(c, up, loaderLevel);
         animating |= loading || loaderLevel > 0;
-        if (message != null) c.drawText(message, w / 2f, h / 2f, messageFont);
+        if (message != null) {
+            c.drawText(message, w / 2f, h / 2f, messageFont);
+            if (retryable) {
+                messageFont.setAlpha(170);
+                c.drawText(Ui.tr("OK: tentar de novo · Voltar: sair", "OK: try again · Back: exit", "OK: reintentar · Atrás: salir"),
+                        w / 2f, h / 2f + 64 * k, messageFont);
+                messageFont.setAlpha(255);
+            }
+        } else if (status != null && loading) {
+            c.drawText(status, w / 2f, h / 2f + 220 * k, messageFont);
+        }
         if (!pauseInfo && panel == P_NONE) drawButton(c, a);
         drawToast(c, up);
         if (animating) postInvalidateOnAnimation();     // every frame while something moves, not every tick
@@ -516,6 +579,10 @@ final class PlayerOverlay extends View {
         stroke.setColor(Ui.alpha(CinemaView.RED, a));
         rect.set(cx - r, cy - r, cx + r, cy + r);
         c.drawArc(rect, start, sweep, false, stroke);
+        if (percentText != null) {
+            percentFont.setAlpha(Math.round(255 * a));
+            c.drawText(percentText, cx, cy + r + 30 * k + 78 * k, percentFont);
+        }
     }
 
     private void drawControls(Canvas c, float a) {
@@ -700,7 +767,7 @@ final class PlayerOverlay extends View {
     private void drawButton(Canvas c, float controls) {
         shownButton = message != null ? null
                 : player.introEnd() >= 0 ? Ui.tr("Pular abertura", "Skip intro", "Saltar intro")
-                : player.nextUp() ? Ui.tr("Próximo episódio", "Next episode", "Siguiente episodio") : null;
+                : player.nextUp() && (!creditsChosen || player.ended()) ? nextLabel(SystemClock.uptimeMillis()) : null;
         if (shownButton == null) return;
         valueFont.setColor(0xFF0B0B0D);
         float tw = valueFont.measureText(shownButton), bw = tw + 120 * k, bh = 76 * k;
@@ -709,7 +776,7 @@ final class PlayerOverlay extends View {
         else rect.set(right - bw, bottom - bh, right, bottom);
         long up = SystemClock.uptimeMillis();
         if (counting(up) && player.nextUp()) {
-            // Grey, filling with white as the countdown runs.
+            // At the video's end only. Grey, filling with white as the countdown runs.
             fill.setColor(0xB3FFFFFF);
             c.drawRoundRect(rect, 12 * k, 12 * k, fill);
             float f = Ui.clamp((up - nextUpSince) / (float) NEXT_COUNTDOWN_MS);
@@ -747,9 +814,25 @@ final class PlayerOverlay extends View {
         return s == 1f ? "1×" : s == 0.5f ? "0.5×" : s == 0.75f ? "0.75×" : s == 1.25f ? "1.25×" : "1.5×";
     }
 
-    /** The credits' countdown runs: the next episode is up, autoplay is on, and Back hasn't chosen the credits. */
+    /** The end's countdown runs: the video ended, autoplay is on, and Back hasn't cancelled it. */
     private boolean counting(long up) {
-        return nextUpSince != 0 && !creditsChosen && CinemaPrefs.autoplay(getContext()) && up - nextUpSince < NEXT_COUNTDOWN_MS;
+        return nextUpSince != 0 && player.ended() && !creditsChosen && CinemaPrefs.autoplay(getContext()) && up - nextUpSince < NEXT_COUNTDOWN_MS;
+    }
+
+    private int countLeft = -1;
+    private String countLabel;
+
+    /** "Next episode", or "Next episode in 5" during the end's countdown (built again only when the second changes). */
+    private String nextLabel(long up) {
+        if (!counting(up)) return Ui.tr("Próximo episódio", "Next episode", "Siguiente episodio");
+        int left = NextUpRules.secondsLeft(up - nextUpSince);
+        if (left != countLeft || countLabel == null) {
+            countLeft = left;
+            String n = Ui.digits(String.valueOf(left));
+            countLabel = Ui.tr("Próximo episódio em " + n, "Next episode in " + n, "Siguiente episodio en " + n,
+                    "الحلقة التالية خلال " + n);
+        }
+        return countLabel;
     }
 
     /** Back chose the credits: no autoplay for this episode. */
@@ -757,22 +840,19 @@ final class PlayerOverlay extends View {
         return creditsChosen;
     }
 
-    /** The countdown or the card had already started. */
-    boolean nextShown() {
-        return nextUpSince != 0;
-    }
-
-    /** Netflix's credits: the Next episode button fills, then the next one plays. */
+    /** At the video's natural end only: the Next episode button fills over 5 s, then the next one plays. Never while it plays. */
     private void countdown(long up) {
-        if (!player.nextUp() || !(player.playing() || player.ended())) {
-            if (!player.nextUp()) {
-                nextUpSince = 0;
-                creditsChosen = false;
-            }
+        if (!player.nextUp()) {
+            nextUpSince = 0;
+            creditsChosen = false;      // seeking back before the card hides it and forgets the dismissal
+            return;
+        }
+        if (!player.ended()) {
+            nextUpSince = 0;
             return;
         }
         if (nextUpSince == 0) nextUpSince = up;
-        if (!creditsChosen && CinemaPrefs.autoplay(getContext()) && up - nextUpSince >= NEXT_COUNTDOWN_MS) {
+        if (NextUpRules.advance(player.hasNext(), true, CinemaPrefs.autoplay(getContext()), creditsChosen, up - nextUpSince)) {
             nextUpSince = 0;
             player.next();
         }

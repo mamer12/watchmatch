@@ -28,6 +28,7 @@ public final class StreamRulesCheck {
         hosts();
         signed();
         quality();
+        timeouts();
         System.out.println(passed + " passed, " + failed + " failed");
         if (failed > 0) System.exit(1);
     }
@@ -126,5 +127,13 @@ public final class StreamRulesCheck {
         eq("mirror starts at 480", 480, QualityRules.autoStartHeight("other", Arrays.asList(240, 480, 720, 1080)));
         eq("no heights", 0, QualityRules.autoStartHeight("el", Arrays.<Integer>asList()));
         eq("remember key per provider", "quality:other", QualityRules.rememberKey("other"));
+    }
+
+    private static void timeouts() {
+        eq("connect timeout", 8000, StreamRules.CONNECT_TIMEOUT_MS);
+        eq("read timeout tolerates the mirror", 20_000, StreamRules.READ_TIMEOUT_MS);
+        eq("a piece is retried once", 1, StreamRules.RETRIES);
+        eq("the plain request is retried once", 1, StreamRules.PLAIN_RETRIES);
+        eq("four connections at most", 4, StreamRules.MAX_CONNECTIONS);
     }
 }

@@ -91,7 +91,16 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     float speed = 1f;
     private long startAt, pendingSeek = -1;
     private boolean triedDirect;
+    /** The file that failed came through Streamer (set on opening): the CDN-direct step only makes sense then. */
+    private boolean streamerWasUsed;
     private AudioFocusRequest focus;
+    /** What to do when the player errors (one ladder per video), and the last place/length the player gave us: the only ones used after an error. */
+    private final PlayerFailureRules failure = new PlayerFailureRules();
+    private long lastPos, lastDur;
+    private final LoadPercent loadPercent = new LoadPercent();
+    /** What the Streamer had delivered when this loading episode began (the percent counts what comes after). */
+    private long deliveredMark;
+    private long markedBuffered;
 
     private final Runnable save = new Runnable() {
         @Override public void run() {
@@ -210,6 +219,9 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         audioNames.clear();
         info = new Library.Info();
         startAt = firstAt >= 0 ? firstAt : fromStart ? 0 : Progress.resumeAt(this, t.id);
+        lastPos = startAt;
+        lastDur = 0;
+        failure.reset();
         Sync.playing(t.id);     // sync never moves the position of the video playing here
         fromStart = false;
         firstAt = -1;
@@ -318,6 +330,8 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
                 }
                 release();
                 streamer = started;
+                streamerWasUsed = started != null;
+                markDelivered();
                 startPlayer(url, at);
             });
         });
@@ -325,13 +339,16 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
 
     private void startPlayer(String url, long at) {
         startAt = at;
+        lastPos = at;
         bufferedMs = 0;
+        failure.settled();
         final MediaPlayer player = new MediaPlayer();
         active = player;
         player.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
                 .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE).build());
         player.setOnPreparedListener(mp -> {
             prepared = true;
+            lastDur = Math.max(0, mp.getDuration());
             readAudioTracks();
             if (startAt > 0) mp.seekTo((int) startAt);
             if (resumed && !holdPaused) play();
@@ -345,49 +362,124 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
             player.setDataSource(url);
             player.prepareAsync();
         } catch (Exception e) {
-            failed(-1, 0);
+            onError(player, generation, -1, 0);
         }
     }
 
     /** What the player on screen reports (also given to a second player when a swap makes it the one on screen). */
-    private void bind(MediaPlayer player) {
+    private void bind(final MediaPlayer player) {
+        final int gen = generation;
         player.setOnInfoListener((mp, what, extra) -> {
             if (what == MediaPlayer.MEDIA_INFO_BUFFERING_START) overlay.loading(true);
             if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) rendered = true;
             if (what == MediaPlayer.MEDIA_INFO_BUFFERING_END || what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) overlay.loading(false);
             return false;
         });
-        player.setOnBufferingUpdateListener((mp, percent) -> bufferedMs = Math.max(0, mp.getDuration()) * (long) percent / 100);
+        player.setOnBufferingUpdateListener((mp, percent) -> bufferedMs = lastDur * (long) percent / 100);
         player.setOnVideoSizeChangedListener((mp, vw, vh) -> fit(surface, vw, vh));
         player.setOnCompletionListener(mp -> finished());
+        player.setOnSeekCompleteListener(mp -> {
+            if (mp == active) overlay.loading(false);
+        });
         player.setOnErrorListener((mp, what, extra) -> {
-            failed(what, extra);
+            onError(mp, gen, what, extra);
             return true;
         });
     }
 
     /**
-     * The player gave up. First the same file straight from the CDN; then, only for 4K, 1080p, saying so (the TV
-     * couldn't decode it or the line is too slow: the picked quality stays saved for the next video).
+     * The player reported an error. The player is in error state: we never ask it anything again (every call answers
+     * -38, which comes back here: that was a loop at 60 Hz). A failure is handled once; the player is cut loose and
+     * released first, then the ladder (PlayerFailureRules) picks: the same file again after a short wait, the same file
+     * straight from the CDN, one quality lower, and last the message with a Retry.
      */
-    private void failed(int what, int extra) {
-        AppLog.w("player error " + what + "/" + extra + " at " + (source == null ? "" : source.label));
-        long at = position();
-        if (!triedDirect && streamer != null) {
-            triedDirect = true;
-            open(generation, at);
+    private void onError(MediaPlayer mp, int gen, int what, int extra) {
+        String label = source == null ? "" : source.label;
+        if (!failure.accept(what, mp == active, gen, generation)) {
+            AppLog.i("player error " + what + "/" + extra + " ignored (gen " + gen + ", now " + generation + ")");
             return;
         }
-        if (source != null && source.height > DEFAULT_HEIGHT) {
-            source = pick(sources, DEFAULT_HEIGHT);
-            triedDirect = false;
-            overlay.toast(Ui.tr("4K não carregou nesta TV: tocando em ", "4K couldn't play here: playing ",
-                    "4K no se pudo reproducir: reproduciendo en ") + source.label);
-            open(generation, at);
-            return;
+        AppLog.first("first player error " + what + "/" + extra + " at " + label + " gen " + gen);
+        mp.setOnErrorListener(null);
+        mp.setOnInfoListener(null);
+        mp.setOnCompletionListener(null);
+        mp.setOnPreparedListener(null);
+        mp.setOnSeekCompleteListener(null);
+        mp.setOnBufferingUpdateListener(null);
+        mp.setOnVideoSizeChangedListener(null);
+        final long at = pendingSeek >= 0 ? pendingSeek : lastPos;
+        release();
+        startAt = at;
+        final Library.Source lower = lowerSource();
+        PlayerFailureRules.Step step = failure.next(what, extra, mp != null && streamerWasUsed, lower != null);
+        AppLog.i("player error " + what + "/" + extra + " at " + label + " gen " + gen + " attempt " + failure.attempts() + " -> " + step
+                + " from " + at / 1000 + " s");
+        switch (step) {
+            case REOPEN_SAME:
+                if (failure.attempts() > 1 && source != null) Streamer.refresh(source.url);     // the signed link may have run out
+                overlay.reconnecting(Ui.tr("Reconectando…", "Reconnecting…", "Reconectando…"));
+                final int mine = generation;
+                handler.postDelayed(() -> {
+                    if (mine == generation) open(mine, at);
+                }, failure.backoffMs());
+                break;
+            case DIRECT:
+                triedDirect = true;
+                overlay.reconnecting(Ui.tr("Reconectando…", "Reconnecting…", "Reconectando…"));
+                open(generation, at);
+                break;
+            case LOWER_QUALITY:
+                source = lower;
+                triedDirect = false;
+                if (controller != null) controller.switched(Math.max(0, sources.indexOf(lower)), SystemClock.uptimeMillis());
+                overlay.reconnecting(Ui.tr("Reconectando…", "Reconnecting…", "Reconectando…"));
+                open(generation, at);
+                break;
+            default:
+                overlay.messageRetry(Ui.tr("Não foi possível tocar este vídeo.", "This video couldn't be played.",
+                        "No se pudo reproducir este video."));
+                break;
         }
-        overlay.message(Ui.tr("Não foi possível tocar este vídeo.", "This video couldn't be played.",
-                "No se pudo reproducir este video."));
+    }
+
+    /** A loading episode begins (first start, a seek, a re-buffering): the percent starts again from zero. */
+    void loadingStarted() {
+        loadPercent.reset();
+        markDelivered();
+    }
+
+    /** A new Streamer or player took over inside one loading episode: count from here, keep the number reached. */
+    private void markDelivered() {
+        Streamer s = streamer;
+        deliveredMark = s == null ? 0 : s.delivered();
+        markedBuffered = bufferedMs;
+    }
+
+    /** The number under the spinner, for the overlay's tick: what arrived ahead over 6 s of the file. */
+    int loadPercent() {
+        Streamer s = streamer;
+        if (s != null) return loadPercent.update(Math.max(0, s.delivered() - deliveredMark), LoadPercent.targetBytes(s.total, lastDur));
+        // straight from the CDN: the player's own buffer, in ms of media
+        long ahead = Math.max(0, bufferedMs - Math.max(markedBuffered, position()));
+        return loadPercent.update(ahead, LoadPercent.TARGET_SECONDS * 1000L);
+    }
+
+    /** The highest file below the one playing, from any provider (null when it is the lowest). */
+    private Library.Source lowerSource() {
+        if (source == null) return null;
+        Library.Source best = null;
+        for (Library.Source s : sources) if (s.height < source.height && (best == null || s.height > best.height)) best = s;
+        return best;
+    }
+
+    /** OK on the final message: the same video again from where it stopped, with the ladder fresh. */
+    void retry() {
+        if (current() == null) return;
+        failure.reset();
+        failure.settled();
+        triedDirect = false;
+        overlay.loading(true);
+        open(generation, startAt);
     }
 
     private void finished() {
@@ -395,13 +487,14 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         if (t != null) Progress.save(this, t, rootTitle(), rootPoster(), duration(), duration());
         markUpNext();
         Progress.flush(this);
-        boolean autoplay = CinemaPrefs.autoplay(this);
-        if (!NextUpRules.playNextAtEnd(hasNext(), autoplay, overlay.nextDismissed())) finish();
-        else if (overlay.nextShown()) next();       // the countdown had started: it ends with the video
-        else ended = true;                          // no card yet: it shows now, with its countdown
+        // Only here, at the video's natural end, may the next episode start by itself (the overlay's 5 s countdown).
+        // Autoplay off: the Next episode button stays, no countdown. Dismissed, a movie or the last episode: done.
+        if (!hasNext() || overlay.nextDismissed()) finish();
+        else ended = true;
     }
 
     void next() {
+        AppLog.i("next episode starts (video ended: " + ended + ", at " + lastPos / 1000 + " s)");
         if (hasNext()) play(index + 1);
     }
 
@@ -426,13 +519,15 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     // MARK: - While playing: intro and family skips, Up next
 
     private void watchPosition() {
-        if (!playing() || pendingSeek >= 0) return;
-        long p = activePlayer().getCurrentPosition(), d = duration();
+        boolean going = playing() && pendingSeek < 0;
+        failure.playing(SystemClock.uptimeMillis(), going);
+        if (!going) return;
+        long p = livePosition(), d = duration();
         if (CinemaPrefs.skipScenes(this)) {
             for (long[] s : info.scenes) {
                 if (p >= s[0] && p < s[1] - 300) {
                     cancelSwap();
-                    activePlayer().seekTo((int) s[1]);
+                    seek(s[1]);
                     overlay.toast(Ui.tr("Cena pulada (modo família)", "Scene skipped (family mode)", "Escena omitida (modo familia)"));
                     return;
                 }
@@ -473,7 +568,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     /** The intro playing now (its end, in ms), or -1: the "Skip intro" button. */
     long introEnd() {
         if (!prepared || pendingSeek >= 0) return -1;
-        long p = activePlayer().getCurrentPosition();
+        long p = livePosition();
         for (long[] i : info.intros) if (p >= i[0] && p < i[1] - 1500) return i[1];
         return -1;
     }
@@ -496,7 +591,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
             applyDeferred(ms, false);
             return;
         }
-        activePlayer().seekTo((int) ms);
+        seek(ms);
     }
 
     // MARK: - Subtitles, audio and quality (from the overlay's panels)
@@ -712,9 +807,9 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         streamer = s;
         source = src;
         triedDirect = false;
-        bind(p);
         p.setOnPreparedListener(null);
         p.setOnSeekCompleteListener(null);
+        bind(p);
         p.setScreenOnWhilePlaying(true);
         if (old != null) {
             old.setOnErrorListener(null);
@@ -779,16 +874,57 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     // MARK: - Playing
 
     boolean playing() {
-        return active != null && prepared && activePlayer().isPlaying();
+        MediaPlayer p = active;
+        if (p == null || !prepared) return false;
+        try {
+            return p.isPlaying();
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
+    /** Where the video is: the player's answer, or the last one we had when it can't answer (never asked after an error). */
     long position() {
         if (pendingSeek >= 0) return pendingSeek;
-        return active != null && prepared ? activePlayer().getCurrentPosition() : startAt;
+        return active != null && prepared ? livePosition() : startAt;
+    }
+
+    private long livePosition() {
+        MediaPlayer p = active;
+        if (p == null || !prepared) return lastPos;
+        try {
+            int v = p.getCurrentPosition();
+            if (v >= 0) lastPos = v;
+        } catch (RuntimeException e) {
+            // not in a state to answer: the last place stands
+        }
+        return lastPos;
     }
 
     long duration() {
-        return active != null && prepared ? Math.max(0, activePlayer().getDuration()) : 0;
+        MediaPlayer p = active;
+        if (p == null || !prepared) return 0;
+        try {
+            lastDur = Math.max(0, p.getDuration());
+        } catch (RuntimeException e) {
+            // keep the last length
+        }
+        return lastDur;
+    }
+
+    /** A seek that can't throw at us; the place is kept at once (an error during it reopens there) and the spinner shows until it lands. */
+    private void seek(long ms) {
+        MediaPlayer p = active;
+        if (p == null || !prepared) return;
+        lastPos = ms;
+        loadingStarted();
+        overlay.loading(true);
+        try {
+            p.seekTo((int) ms);
+        } catch (RuntimeException e) {
+            AppLog.w("seek: " + e);
+            overlay.loading(false);
+        }
     }
 
     void toggle() {
@@ -804,7 +940,12 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         if (active == null || !prepared) return;
         requestFocus();
         holdPaused = false;
-        activePlayer().start();
+        try {
+            activePlayer().start();
+        } catch (RuntimeException e) {
+            AppLog.w("start: " + e);
+            return;
+        }
         if (speed != 1f) applySpeed();
         handler.removeCallbacks(save);
         handler.postDelayed(save, STARTED_SAVE_MS);
@@ -819,7 +960,11 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         if (active == null || !prepared) return;
         cancelSwap();
         handler.removeCallbacks(autoTick);
-        activePlayer().pause();
+        try {
+            activePlayer().pause();
+        } catch (RuntimeException e) {
+            AppLog.w("pause: " + e);
+        }
         saveProgress();
         Progress.flush(this);     // paused, stopped or closed: on disk now (a power cut may follow)
         overlay.invalidate();
@@ -829,7 +974,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     void skip(long by) {
         if (!prepared) return;
         cancelSwap();
-        long base = pendingSeek >= 0 ? pendingSeek : activePlayer().getCurrentPosition();
+        long base = pendingSeek >= 0 ? pendingSeek : livePosition();
         pendingSeek = Math.max(0, Math.min(duration() - 1000, base + by));
         handler.removeCallbacks(commitSeek);
         handler.postDelayed(commitSeek, SEEK_SETTLE_MS);
@@ -844,7 +989,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
             pendingSeek = -1;
             applyDeferred(at, true);
         } else {
-            activePlayer().seekTo((int) pendingSeek);
+            seek(pendingSeek);
             pendingSeek = -1;
         }
         overlay.invalidate();
@@ -887,10 +1032,15 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         handler.removeCallbacks(watch);
         handler.removeCallbacks(commitSeek);
         pendingSeek = -1;
-        if (active != null) {
-            activePlayer().setOnErrorListener(null);
-            activePlayer().release();
-            active = null;
+        MediaPlayer old = active;
+        active = null;
+        if (old != null) {
+            try {
+                old.setOnErrorListener(null);
+                old.release();
+            } catch (RuntimeException e) {
+                AppLog.w("release: " + e);
+            }
         }
         prepared = false;
         if (streamer != null) {

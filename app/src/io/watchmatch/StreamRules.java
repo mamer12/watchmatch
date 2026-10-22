@@ -15,6 +15,8 @@ final class StreamRules {
 
     /** Most bytes answered per response chunk, pieces per chunk, connections open at once. */
     static final long MAX_RESPONSE_BYTES = 8L << 20;
+    /** The mirror is slow to answer (first byte 0.7 to 1.2 s, 2 to 5 Mbit/s a connection): wait for it. A failed piece or plain request is tried once more. */
+    static final int CONNECT_TIMEOUT_MS = 8000, READ_TIMEOUT_MS = 20_000, PLAIN_RETRIES = 1;
     static final int PIECES = 4, MAX_CONNECTIONS = 4, RETRIES = 1, FILE_HOSTS = 6, HOST_TRIES = 2;
     /** A signed link is reused until it is this close to running out. */
     static final long EXPIRY_MARGIN_MS = 10 * 60_000L;
