@@ -144,6 +144,15 @@ public class SearchActivity extends Activity implements Thumbs.Listener {
                 bar.addView(m, lp);
             }
         }
+        View tonight = tonightButton();
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, px(MIC));
+        if (Ui.rtl) {
+            tp.rightMargin = px(20);
+            bar.addView(tonight, 0, tp);
+        } else {
+            tp.leftMargin = px(20);
+            bar.addView(tonight, tp);
+        }
         page.addView(bar);
         status = text(28, 0x99FFFFFF);
         status.setPadding(px(M), px(20), px(M), px(10));
@@ -212,6 +221,27 @@ public class SearchActivity extends Activity implements Thumbs.Listener {
     private boolean canListen() {
         return (voice != null || !getPackageManager().queryIntentActivities(new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH), 0).isEmpty())
                 && Symbols.get(this, "mic") != null;
+    }
+
+    /** Spark Tonight: its own screen (a chat that asks what you feel like). A pill like the box; focused, white. */
+    private View tonightButton() {
+        final GradientDrawable bg = new GradientDrawable();
+        bg.setColor(FIELD);
+        bg.setCornerRadius(px(MIC / 2f));
+        final TextView t = text(28, 0xB3FFFFFF);
+        t.setTypeface(Ui.medium);
+        t.setText(TonightText.get(Ui::tr, "title"));
+        t.setGravity(Gravity.CENTER);
+        t.setSingleLine(true);
+        t.setBackground(bg);
+        t.setPadding(px(34), 0, px(34), 0);
+        t.setFocusable(true);
+        t.setOnFocusChangeListener((v, has) -> {
+            bg.setColor(has ? 0xFFFFFFFF : FIELD);
+            t.setTextColor(has ? 0xFF0B0B0D : 0xB3FFFFFF);
+        });
+        t.setOnClickListener(v -> start(TonightData.launch(this)));
+        return t;
     }
 
     /** Round, in the box's color; focused, the cards' ring; listening, lit (and breathing, unless Reduce motion). */

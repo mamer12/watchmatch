@@ -8,6 +8,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Spark Tonight can listen to the answer. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <!-- Trailers open in YouTube. -->
     <queries>
@@ -58,6 +60,15 @@
             android:screenOrientation="landscape"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
             android:theme="@style/WatchMatch.Cinema" />
+
+        <!-- Spark Tonight (WatchMatch's search opens it here, where the profile's data is). -->
+        <activity
+            android:name=".TonightActivity"
+            android:exported="true"
+            android:screenOrientation="landscape"
+            android:windowSoftInputMode="stateHidden|adjustResize"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
 
         <provider
             android:name=".WatchData"

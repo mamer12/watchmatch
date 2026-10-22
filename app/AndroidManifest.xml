@@ -137,6 +137,19 @@
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
             android:theme="@style/WatchMatch.Cinema" />
 
+        <!-- Spark Tonight: a chat that asks what you feel like and picks titles. Beside Watchme+ (:cinema), where the
+             profile's data and the sync session live. -->
+        <activity
+            android:name=".TonightActivity"
+            android:process=":cinema"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:taskAffinity="io.watchmatch.tonight"
+            android:screenOrientation="landscape"
+            android:windowSoftInputMode="stateHidden|adjustResize"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
+
         <!-- The home screen asks Watchme+'s copy (in :cinema, where its data lives) to pull from the sync backend. -->
         <provider
             android:name=".SyncProvider"

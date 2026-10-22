@@ -46,6 +46,8 @@ final class Library {
         /** The title's logo (TMDB, transparent), "" when none; the catalog's wide cover art (banner titles), "" when none. */
         String logo = "", cover = "";
         String imdb = "", rootId = "";
+        /** All the catalog's genre names of a title that came from a list (the English ones); empty when read from a copy. */
+        List<String> categories = Collections.emptyList();
         boolean series;
         int season, episode, minutes;
 
@@ -273,6 +275,16 @@ final class Library {
             return titles(new JSONArray(load("AdvancedSearch?level=" + level() + "&videoTitle=" + q + "&type=" + type + "&page=0", freshMs)));
         } catch (Exception e) {
             AppLog.w("catalog search: " + e);
+            return new ArrayList<>();
+        }
+    }
+
+    /** AdvancedSearch for `params` ("type=movies&category_id=84&page=0"), the family level added; background thread, empty on failure. */
+    List<Title> advancedNow(String params, long freshMs) {
+        try {
+            return titles(new JSONArray(load("AdvancedSearch?level=" + level() + "&" + params, freshMs)));
+        } catch (Exception e) {
+            AppLog.w("catalog advanced: " + e);
             return new ArrayList<>();
         }
     }
@@ -574,6 +586,13 @@ final class Library {
             n++;
         }
         t.genres = genres.toString();
+        List<String> all = new ArrayList<>();
+        for (int i = 0; cats != null && i < cats.length(); i++) {
+            JSONObject c = cats.optJSONObject(i);
+            String name = c == null ? "" : s(c, "en_title");
+            if (!name.isEmpty() && !name.equalsIgnoreCase("uncategorized")) all.add(name);
+        }
+        t.categories = Collections.unmodifiableList(all);
         return t;
     }
 

@@ -287,6 +287,15 @@ final class SyncClient implements SyncEngine.Api {
         return s.access;
     }
 
+    /** A valid access token for another of the project's services (Spark Tonight), or null without a session. Never signs up. */
+    String sessionToken() {
+        try {
+            return accessToken(false);
+        } catch (HttpException e) {
+            return null;
+        }
+    }
+
     /** An authenticated call; one refresh and retry on 401. */
     private Response authed(String method, String path, String body, Map<String, String> extra, boolean allowSignUp) throws HttpException {
         String token = accessToken(allowSignUp);
