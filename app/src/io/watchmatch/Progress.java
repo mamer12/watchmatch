@@ -183,23 +183,97 @@ final class Progress {
     }
 
     /**
-     * Where a series continues: the episode being watched (resumes), the one after the last finished, or the first.
+     * Where a series continues: the episode being watched (resumes), the one after the last finished, the waiting
+     * up-next, or the first only when nothing of the series was ever watched.
      * {index in `episodes`, 1 when it resumes}; {-1, 0} for none.
      */
     static int[] nextEpisode(Context c, List<Library.Title> episodes) {
         if (episodes.isEmpty()) return new int[] {-1, 0};
-        Entry latest = null;
-        int at = -1;
-        for (int i = 0; i < episodes.size(); i++) {
-            Entry e = get(c, episodes.get(i).id);
-            if (e != null && !e.upNext && (latest == null || e.at > latest.at)) {
-                latest = e;
-                at = i;
+        return targetFor(episodes, entriesFor(c, episodes));
+    }
+
+    /** Every saved entry of the series: by an episode's id, or by the series id (whatever its id, e.g. a newer episode). */
+    static List<Entry> entriesFor(Context c, List<Library.Title> episodes) {
+        List<Entry> out = new ArrayList<>();
+        if (episodes.isEmpty()) return out;
+        String root = episodes.get(0).rootId;
+        Set<String> ids = new HashSet<>();
+        for (Library.Title t : episodes) ids.add(t.id);
+        for (Entry e : all(c)) {
+            if (ids.contains(e.title.id) || !root.isEmpty() && (root.equals(e.title.rootId) || root.equals(e.title.id))) out.add(e);
+        }
+        return out;
+    }
+
+    /** True when an entry of the series is past the last episode listed (a stale list lacks the newest episode). */
+    static boolean listIsStale(List<Library.Title> episodes, List<Entry> entries) {
+        if (episodes.isEmpty()) return false;
+        Set<String> ids = new HashSet<>();
+        long last = 0;
+        for (Library.Title t : episodes) {
+            ids.add(t.id);
+            last = Math.max(last, order(t));
+        }
+        for (Entry e : entries) if (!ids.contains(e.title.id) && order(e.title) >= last && order(e.title) > 0) return true;
+        return false;
+    }
+
+    private static long order(Library.Title t) {
+        return t.season <= 0 && t.episode <= 0 ? 0 : Math.max(0, t.season) * 100_000L + Math.max(0, t.episode);
+    }
+
+    /** Index of the entry's episode in the list: by id, else by season and number; -1 when it is not there. */
+    private static int locate(List<Library.Title> episodes, Library.Title t) {
+        for (int i = 0; i < episodes.size(); i++) if (episodes.get(i).id.equals(t.id)) return i;
+        long o = order(t);
+        if (o == 0) return -1;
+        for (int i = 0; i < episodes.size(); i++) if (order(episodes.get(i)) == o) return i;
+        return -1;
+    }
+
+    /** The last episode listed that comes before or at the entry's position (its place when it is not in the list). */
+    private static int floor(List<Library.Title> episodes, Library.Title t) {
+        long o = order(t);
+        if (o == 0) return episodes.size() - 1;
+        int at = 0;
+        for (int i = 0; i < episodes.size(); i++) if (order(episodes.get(i)) <= o) at = i;
+        return at;
+    }
+
+    private static int indexOf(List<Library.Title> episodes, Entry e) {
+        int i = locate(episodes, e.title);
+        return i >= 0 ? i : floor(episodes, e.title);
+    }
+
+    /**
+     * The choice itself, on plain data. `entries` are what was saved for the series (any id). The newest watched
+     * episode wins: unfinished resumes, finished goes to the next one (the waiting up-next when it is further on; the
+     * last episode, to play again, when nothing comes after); started under 3 s plays again; only an up-next goes to it.
+     * The first episode only when no entry exists.
+     */
+    static int[] targetFor(List<Library.Title> episodes, List<Entry> entries) {
+        if (episodes.isEmpty()) return new int[] {-1, 0};
+        int last = episodes.size() - 1;
+        Entry watched = null, waiting = null;
+        for (Entry e : entries) {
+            if (e.upNext) {
+                if (waiting == null || e.at > waiting.at) waiting = e;
+            } else if (e.position > 0 || e.duration > 0) {
+                if (watched == null || e.at > watched.at) watched = e;
             }
         }
-        if (latest == null) return new int[] {0, 0};
-        if (latest.unfinished()) return new int[] {at, 1};
-        return new int[] {Math.min(at + 1, episodes.size() - 1), 0};
+        if (watched == null && waiting == null) return new int[] {0, 0};
+        int up = waiting == null ? -1 : indexOf(episodes, waiting);
+        if (watched == null) return new int[] {up, 0};
+        int w = locate(episodes, watched.title);
+        boolean listed = w >= 0;
+        if (!listed) w = floor(episodes, watched.title);
+        if (watched.unfinished()) return listed ? new int[] {w, 1} : new int[] {last, 0};
+        if (!watched.finished()) return new int[] {w, 0};
+        int next = Math.min(w + 1, last);
+        if (!listed && order(watched.title) > order(episodes.get(last))) next = last;
+        if (waiting != null && up > next && up > w) next = up;
+        return new int[] {next, 0};
     }
 
     /** Everything watched (started or finished, not just waiting as Up next), newest first. */

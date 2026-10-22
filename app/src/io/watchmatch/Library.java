@@ -21,7 +21,9 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
@@ -313,6 +315,17 @@ final class Library {
         });
     }
 
+    private final Map<String, Long> staleAsked = new HashMap<>();
+
+    /** True at most once in 10 minutes per series (a list that really lacks the episode is not asked for every time). */
+    private synchronized boolean refreshedAt(String seriesId) {
+        long now = System.currentTimeMillis();
+        Long was = staleAsked.get(seriesId);
+        if (was != null && now - was < 10 * 60_000L) return false;
+        staleAsked.put(seriesId, now);
+        return true;
+    }
+
     /** The same, on the caller's (background) thread; empty when it fails. */
     List<Title> episodesNow(String seriesId) {
         List<Title> out = new ArrayList<>();
@@ -320,6 +333,13 @@ final class Library {
             out = titles(new JSONArray(load("videoSeason/id/" + seriesId, FRESH_MS)));
             Collections.sort(out, (a, b) -> a.season != b.season ? a.season - b.season : a.episode - b.episode);
             for (Title t : out) t.rootId = seriesId;
+            // Something of the series was saved past the last listed episode: the cached list is old, ask again.
+            if (Progress.listIsStale(out, Progress.entriesFor(context, out)) && refreshedAt(seriesId)) {
+                List<Title> fresh = titles(new JSONArray(load("videoSeason/id/" + seriesId, 0)));
+                Collections.sort(fresh, (a, b) -> a.season != b.season ? a.season - b.season : a.episode - b.episode);
+                for (Title t : fresh) t.rootId = seriesId;
+                if (!fresh.isEmpty()) out = fresh;
+            }
         } catch (Exception e) {
             AppLog.w("catalog episodes: " + e);
         }

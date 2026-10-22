@@ -58,7 +58,66 @@ public final class ProgressCheck {
         eq("the newest 20 stay", "m0", ids(Progress.select(many, 20)).get(0));
         eq("and the 20th is m19", "m19", ids(Progress.select(many, 20)).get(19));
         eq("a film below 3 s is not started", Arrays.asList(), ids(Progress.select(Arrays.asList(entry("f", "", 5, 1000, 100000, false)), 20)));
+        tulsaKing();
         System.out.println(passed + " passed, " + failed + " failed");
         if (failed > 0) System.exit(1);
+    }
+
+    private static List<Library.Title> series(int[] perSeason, int[] listed) {
+        List<Library.Title> l = new ArrayList<>();
+        int n = 0;
+        for (int s = 0; s < perSeason.length; s++) {
+            for (int e = 1; e <= perSeason[s]; e++) {
+                Library.Title t = new Library.Title();
+                t.id = "ep" + (++n);
+                t.rootId = "tk";
+                t.series = true;
+                t.season = s + 1;
+                t.episode = e;
+                l.add(t);
+            }
+        }
+        return l;
+    }
+
+    private static Progress.Entry ep(String id, int season, int episode, long at, long pos, long dur, boolean upNext, String root) {
+        Progress.Entry e = entry(id, root, at, pos, dur, upNext);
+        e.title.season = season;
+        e.title.episode = episode;
+        return e;
+    }
+
+    private static List<Integer> t(List<Library.Title> eps, List<Progress.Entry> en) {
+        int[] r = Progress.targetFor(eps, en);
+        return Arrays.asList(r[0], r[1]);
+    }
+
+    private static void tulsaKing() {
+        // Seasons of 10, 10, 10: S3E10 is the last listed (the list lacks S4E1: stale).
+        List<Library.Title> stale = series(new int[] {10, 10, 10}, null);
+        List<Library.Title> full = series(new int[] {10, 10, 10, 1}, null);
+        full.get(30).id = "3150356";
+        List<Progress.Entry> none = new ArrayList<>();
+        eq("never watched: S1E1", Arrays.asList(0, 0), t(full, none));
+        eq("S4E1 unfinished resumes it", Arrays.asList(30, 1), t(full, Arrays.asList(ep("3150356", 4, 1, 9, 50000, 100000, false, "tk"))));
+        eq("S4E1 finished stays on it", Arrays.asList(30, 0), t(full, Arrays.asList(ep("3150356", 4, 1, 9, 99000, 100000, false, "tk"))));
+        eq("S4E1 only up-next", Arrays.asList(30, 0), t(full, Arrays.asList(ep("3150356", 4, 1, 9, 0, 0, true, "tk"))));
+        eq("S4E1 under 3 s plays it", Arrays.asList(30, 0), t(full, Arrays.asList(ep("3150356", 4, 1, 9, 1000, 100000, false, "tk"))));
+        eq("stale list, S4E1 unfinished: last listed, not S1E1", Arrays.asList(29, 0), t(stale, Arrays.asList(ep("3150356", 4, 1, 9, 50000, 100000, false, "tk"))));
+        eq("stale list, S4E1 up-next: last listed", Arrays.asList(29, 0), t(stale, Arrays.asList(ep("3150356", 4, 1, 9, 0, 0, true, "tk"))));
+        eq("stale list is noticed", true, Progress.listIsStale(stale, Arrays.asList(ep("3150356", 4, 1, 9, 0, 0, true, "tk"))));
+        eq("full list is not stale", false, Progress.listIsStale(full, Arrays.asList(ep("3150356", 4, 1, 9, 0, 0, true, "tk"))));
+        eq("S3E10 finished then up-next S4E1", Arrays.asList(30, 0), t(full, Arrays.asList(
+                ep("ep30", 3, 10, 9, 99000, 100000, false, "tk"), ep("3150356", 4, 1, 8, 0, 0, true, "tk"))));
+        eq("only an up-next S4E1 and an older finished S3E10 entry", Arrays.asList(30, 0), t(full, Arrays.asList(
+                ep("ep30", 3, 10, 5, 99000, 100000, false, "tk"), ep("3150356", 4, 1, 9, 0, 0, true, "tk"))));
+        eq("interleaved: newest unfinished S3E3 among older S1E1", Arrays.asList(22, 1), t(full, Arrays.asList(
+                ep("ep1", 1, 1, 1, 99000, 100000, false, "tk"), ep("ep23", 3, 3, 7, 40000, 100000, false, "tk"),
+                ep("ep11", 2, 1, 3, 99000, 100000, false, "tk"))));
+        eq("different id, same season and episode", Arrays.asList(22, 1), t(full, Arrays.asList(
+                ep("other-id", 3, 3, 7, 40000, 100000, false, "tk"))));
+        eq("finished middle episode goes to the next", Arrays.asList(23, 0), t(full, Arrays.asList(ep("ep23", 3, 3, 7, 99000, 100000, false, "tk"))));
+        eq("finished last episode stays", Arrays.asList(30, 0), t(full, Arrays.asList(ep("3150356", 4, 1, 7, 99000, 100000, false, "tk"))));
+        eq("empty list", -1, Progress.targetFor(new ArrayList<Library.Title>(), none)[0]);
     }
 }
