@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <script>
+    // Pick the page for the visitor once; the EN/PT/AR switch in the menu is remembered and wins.
+    (function () {
+      var lang;
+      try { lang = localStorage.getItem("lang"); } catch (e) {}
+      if (!lang) {
+        var zone = "", nav = (navigator.language || "").toLowerCase();
+        try { zone = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) {}
+        var brazil = /^(America\/(Sao_Paulo|Rio_Branco|Manaus|Cuiaba|Campo_Grande|Porto_Velho|Boa_Vista|Belem|Fortaleza|Recife|Araguaina|Maceio|Bahia|Santarem|Noronha|Eirunepe)|Brazil\/)/.test(zone);
+        lang = brazil || nav.indexOf("pt") === 0 ? "pt" : nav.indexOf("ar") === 0 ? "ar" : "en";
+      }
+      if (lang === "pt" || lang === "ar") location.replace(lang + "/" + location.search + location.hash);
+    })();
+  </script>
+  <title>WatchMatch: the fast, ad-free home screen for your TV</title>
+  <meta name="description" content="Open-source home screen for Android TV and Google TV, with Spark natural-language search in Arabic and English, a fully right-to-left Arabic interface, live match scores and no ads. One button to undo.">
+  <link rel="canonical" href="https://mamer12.github.io/watchmatch/">
+  <link rel="alternate" hreflang="en" href="https://mamer12.github.io/watchmatch/"><link rel="alternate" hreflang="pt-BR" href="https://mamer12.github.io/watchmatch/pt/"><link rel="alternate" hreflang="ar" href="https://mamer12.github.io/watchmatch/ar/"><link rel="alternate" hreflang="x-default" href="https://mamer12.github.io/watchmatch/">
+  <meta name="theme-color" content="#0B1433">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://mamer12.github.io/watchmatch/">
+  <meta property="og:title" content="WatchMatch">
+  <meta property="og:description" content="No ads. Spark search in Arabic and English. Live match scores. A home screen that answers in 100 ms.">
+  <meta property="og:image" content="https://mamer12.github.io/watchmatch/assets/og.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="WatchMatch">
+  <meta name="twitter:description" content="No ads. Spark search in Arabic and English. Live match scores. A home screen that answers in 100 ms.">
+  <meta name="twitter:image" content="https://mamer12.github.io/watchmatch/assets/og.jpg">
+  <link rel="icon" type="image/png" href="assets/favicon-64.png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <link rel="preload" href="assets/fonts/InterVariable.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" as="image" href="assets/media/home.webp" type="image/webp">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="nav" id="nav">
+  <a class="brand" href="#top" aria-label="WatchMatch"><img src="assets/icon-512.png" alt="" width="32" height="32"><span>Watch<b>Match</b></span></a>
+  <nav class="links" aria-label="Features"><a href="#features">Features</a><a href="#spark">Spark</a><a href="#arabic">Arabic</a><a href="#install">Install</a><a href="#faq">FAQ</a></nav>
+  <div class="nav-end">
+    <div class="langs" role="group" aria-label="Language"><a href="./" hreflang="en" lang="en" data-lang="en" aria-label="English" aria-current="true">EN</a><a href="pt/" hreflang="pt-BR" lang="pt-BR" data-lang="pt" aria-label="Português">PT</a><a href="ar/" hreflang="ar" lang="ar" data-lang="ar" aria-label="العربية">AR</a></div>
+    <a class="btn btn-sm" href="#install">Install</a>
+  </div>
+</header>
+<main id="main">
+<section class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <p class="eyebrow">Open source home screen for Android TV</p>
+      <h1>Your TV, <span class="lime">without the noise.</span></h1>
+      <p class="lead">WatchMatch replaces the stock home screen with one that is fast, ad-free and yours. Search in your own words, follow your team live, and undo everything with one button.</p>
+      <div class="cta">
+        <a class="btn" href="#install">Install in 10 minutes</a>
+        <a class="btn btn-ghost" href="https://github.com/mamer12/watchmatch/releases">Download APK</a>
+        <a class="btn btn-link" href="https://github.com/mamer12/watchmatch">View on GitHub</a>
+      </div>
+      <ul class="badges"><li>MIT licensed</li><li>Arabic and RTL</li><li>No root</li><li>1.5 MB</li></ul>
+    </div>
+    <div class="hero-shot" data-reveal><figure class="tv tv-hero"><div class="tv-bezel"><video class="shot" src="assets/media/tour.mp4" poster="assets/media/home.webp" width="1280" height="720" autoplay muted loop playsinline preload="metadata" aria-label="A tour of WatchMatch: the home screen, Discover, Apps, Spark search and Settings (English interface shown)"></video></div><span class="tv-stand" aria-hidden="true"></span></figure></div>
+  </div>
+</section>
+
+<section class="stats" aria-labelledby="stats-h">
+  <div class="wrap">
+    <h2 id="stats-h">Measured, not promised.</h2>
+    <p class="sub">Numbers from a 2 GB TCL TV on Android 11, the kind of set that makes the stock home screen sweat.</p>
+    <div class="stat-grid"><div class="stat" data-reveal><b>53 MB</b><span>Home screen memory</span><small>The stock home uses 69 MB.</small></div><div class="stat" data-reveal><b>100 ms</b><span>Home button to home</span><small>The stock home takes 180 ms.</small></div><div class="stat" data-reveal><b>1.5 MB</b><span>Whole APK</span><small>No libraries, no Gradle.</small></div><div class="stat" data-reveal><b>0</b><span>Ads, ever</span><small>Promo apps are switched off.</small></div></div>
+    <figure class="fig" data-reveal><div class="tv-bezel"><img class="shot" src="assets/media/settings-performance.webp" width="1280" height="720" alt="WatchMatch Settings, Performance page comparing Home button time and memory with the original home screen" loading="lazy" decoding="async"></div><figcaption>Settings, Performance: WatchMatch measured against the original home screen on this TV.</figcaption></figure>
+  </div>
+</section>
+
+<section class="why">
+  <div class="wrap">
+    <h2>A TV should not be this hard to use.</h2>
+    <div class="cards3"><div class="card" data-reveal><h3>Ads in your own living room</h3><p>Sponsored tiles, autoplay trailers and rows you cannot remove.</p></div><div class="card" data-reveal><h3>A home screen that thinks about it</h3><p>Press Home and wait. On a 2 GB TV, every press is a small tax.</p></div><div class="card" data-reveal><h3>Apps you never installed</h3><p>Demo, store and promo apps that came with the TV and keep running.</p></div></div>
+    <p class="why-end">WatchMatch is the answer: it only shows what is yours.</p>
+  </div>
+</section>
+
+<section id="features" class="features">
+  <div class="wrap">
+    <h2>Everything on one screen, nothing you did not choose.</h2>
+    <div class="ft-wrap" data-reveal><table class="ft"><thead><tr><th scope="col">Feature</th><th scope="col">What you get</th></tr></thead><tbody><tr class="grp"><th colspan="2" scope="colgroup">Home</th></tr><tr><th scope="row">Rows you control</th><td>Reorder or hide rows, or start from the Cinema, Sports, Kids or Minimal presets. Pick the apps on the shelf.</td></tr><tr><th scope="row">Discover and Apps</th><td>A weekly Top 10, what is popular on your streaming apps, recent apps, all apps and inputs.</td></tr><tr><th scope="row">Remote and phone</th><td>On TCL, choose what the Netflix, YouTube and Prime buttons open. Send links and searches from your phone, on your home network with a PIN.</td></tr><tr class="grp"><th colspan="2" scope="colgroup">Search</th></tr><tr><th scope="row">Spark</th><td>Say or type a sentence in Arabic or English. It becomes filter chips you can remove, and searches TMDB results and the apps on your TV.</td></tr><tr class="grp"><th colspan="2" scope="colgroup">Sports</th></tr><tr><th scope="row">Match Centre</th><td>Live scores with crests, a match-day card for your team, a reminder 10 minutes before kick-off over any app, goal alerts and quiet hours.</td></tr><tr class="grp"><th colspan="2" scope="colgroup">Look &amp; accessibility</th></tr><tr><th scope="row">Arabic, fully right to left</th><td>The whole interface mirrors when the TV speaks Arabic. Western or Arabic-Indic digits, Arabic voice search.</td></tr><tr><th scope="row">Look</th><td>Light, dark or by your city&#x27;s real sunset. Accent colour, 12 or 24 hour clock, Celsius or Fahrenheit.</td></tr><tr><th scope="row">Accessibility</th><td>Larger text, high contrast and reduced motion.</td></tr><tr><th scope="row">Settings with live preview</th><td>Every setting says what it does and shows the effect as you move.</td></tr><tr class="grp"><th colspan="2" scope="colgroup">Performance</th></tr><tr><th scope="row">Light on the hardware</th><td>1.5 MB APK, one Canvas, no allocations while drawing. Lite mode is chosen automatically on weak TVs. Home button in 100 ms against 180 ms.</td></tr><tr class="grp"><th colspan="2" scope="colgroup">Reliability</th></tr><tr><th scope="row">Power-cut proof</th><td>Trusted time, retries with backoff, saved rows and durable writes keep it steady after an outage.</td></tr><tr><th scope="row">Watchdog</th><td>Goes back to the stock home screen after 3 crashes in 5 minutes.</td></tr><tr class="grp"><th colspan="2" scope="colgroup">Privacy &amp; safety</th></tr><tr><th scope="row">No ads, no tracking</th><td>No accounts, no analytics. Your keys stay in a file on your computer.</td></tr><tr><th scope="row">No root, fully reversible</th><td>Apps are switched off, never uninstalled. Original brings everything back.</td></tr><tr class="grp"><th colspan="2" scope="colgroup">Platforms</th></tr><tr><th scope="row">TVs</th><td>Google TV and Android TV (Android 9+).</td></tr></tbody></table></div>
+  </div>
+</section>
+
+
+
+<section id="spark" class="spark">
+  <div class="wrap two">
+    <div>
+      <p class="eyebrow">Spark</p>
+      <h2>Spark understands sentences.</h2>
+      <p class="lead">Press the mic or type. Spark splits what you say into filters for type, genre, era and origin, then looks through TMDB results and the apps installed on your TV at once.</p>
+      <ul class="examples"><li data-reveal><q dir="auto">افلام عربيه قديمه</q><span>Old Arabic movies</span></li><li data-reveal><q dir="auto">new gangster movies</q><span>Crime, from the last 3 years</span></li><li data-reveal><q dir="auto">مسلسل بريكينج باد</q><span>The series Breaking Bad</span></li><li data-reveal><q dir="auto">foreign comedy movies</q><span>Comedy, not Arabic</span></li></ul>
+      <ul class="ticks"><li>Filter chips you remove with one press</li><li>Eras: new, old, a decade, a year or a range</li><li>Origins: Arabic, Turkish, Korean, Indian, Japanese, Egyptian, Gulf, American</li><li>Unknown words become the title</li></ul>
+    </div>
+    <div><figure class="fig" data-reveal><div class="tv-bezel"><img class="shot" src="assets/media/spark.webp" width="1280" height="720" alt="Spark turning the sentence new comedy movies into Movies, Comedy and New chips, with results on Apple TV and Netflix (English interface shown)" loading="lazy" decoding="async"></div></figure></div>
+  </div>
+</section>
+
+<section id="arabic" class="arabic">
+  <div class="wrap narrow">
+    <p class="eyebrow">Arabic</p>
+    <h2>Arabic is a feature, not a translation.</h2>
+    <p class="lead">When the TV language is Arabic, the whole interface flips to right to left: tabs, rows, the focus path, settings and the Top 10 numbers.</p>
+    <ul class="ticks"><li>Follows the TV language automatically, or force English, Portuguese, Spanish or Arabic</li><li>Western (123) or Arabic-Indic (١٢٣) digits, your choice</li><li>Arabic voice search, and Arabic sentences in Spark</li><li>Mixed text keeps its direction, such as an English title inside an Arabic sentence</li></ul>
+    <p class="note">The pictures on this page show the English interface.</p>
+  </div>
+</section>
+
+<section class="two-cols sports">
+  <div class="wrap two flip2">
+    <div><h2>Never miss kick-off.</h2><p class="lead">Pick your teams and leagues on the TV. Their matches lead the row, a reminder appears 10 minutes before over any app, and a live score sits in the corner with goal alerts. Quiet hours keep the house asleep.</p></div>
+    <div><figure class="fig" data-reveal><div class="tv-bezel"><img class="shot" src="assets/media/matches.webp" width="1280" height="577" alt="Match Centre row with live scores and crests, and tonight&#x27;s games below (English interface shown)" loading="lazy" decoding="async"></div><figcaption>Match Centre: live scores with crests and the minute, and tonight&#x27;s games below.</figcaption></figure></div>
+  </div>
+</section>
+
+<section class="control">
+  <div class="wrap narrow"><h2>Make the home screen yours.</h2><ul class="ticks"><li>Home Rows editor with Cinema, Sports, Kids and Minimal presets</li><li>Apps shelf in the order you pick</li><li>Remote buttons for TCL: choose what Netflix, YouTube and Prime open</li><li>Light, dark or by the real sunset; accent colour; 12 or 24 hour clock</li><li>Text size, high contrast and reduced motion</li><li>Phone companion: send links and searches from your phone, locked to your home network with a PIN</li></ul></div>
+</section>
+
+<section class="privacy">
+  <div class="wrap">
+    <h2>Safe by design.</h2>
+    <div class="grid4"><div class="card" data-reveal><h3>No ads, no tracking</h3><p>No accounts and no analytics.</p></div><div class="card" data-reveal><h3>Your keys stay yours</h3><p>API keys live in a file on your computer that git ignores.</p></div><div class="card" data-reveal><h3>No root</h3><p>It uses the TV&#x27;s own ADB from inside the TV.</p></div><div class="card" data-reveal><h3>Fully reversible</h3><p>Apps are switched off, never uninstalled. Original undoes everything.</p></div></div>
+  </div>
+</section>
+
+<section id="install" class="install">
+  <div class="wrap">
+    <h2>Install in about ten minutes.</h2>
+    <p class="sub">You need an Android TV or Google TV (Android 9+) and a computer on the same Wi-Fi. First turn on USB debugging: Settings, System, About, press the build number 7 times, then Developer options.</p>
+    <div class="cards3 paths"><div class="card path" data-reveal><span class="num">1</span><h3>With Claude Code</h3><small>The easy way</small><pre dir="ltr"><code>git clone https://github.com/mamer12/watchmatch
+cd watchmatch
+# open Claude Code here and say:
+# &quot;Install WatchMatch on my TV at 192.168.1.50. I live in Baghdad.&quot;</code></pre></div><div class="card path" data-reveal><span class="num">2</span><h3>With adb</h3><small>The manual way</small><pre dir="ltr"><code>./build.sh
+adb connect 192.168.1.50:5555
+adb install -r WatchMatch.apk
+# TCL TVs only:
+adb shell &quot;appops set io.watchmatch AUTO_START allow || appops set io.watchmatch APP_AUTO_START allow&quot;</code></pre></div><div class="card path" data-reveal><span class="num">3</span><h3>From Releases</h3><small>No build tools</small><p>Download WatchMatch.apk, then adb install -r. Add your own TMDB key by building it yourself for trending picks.</p><a class="btn btn-sm" href="https://github.com/mamer12/watchmatch/releases">Open Releases</a></div></div>
+  </div>
+</section>
+
+<section id="faq" class="faq">
+  <div class="wrap narrow">
+    <h2>Questions</h2>
+    <details><summary>Is it safe?</summary><p>It never uninstalls anything, keeps picture, sound, inputs and Google services on a protected list, and is fully undoable. The code is open for you to read.</p></details><details><summary>Does it need root?</summary><p>No. After you allow debugging once, the app uses the TV&#x27;s own ADB over 127.0.0.1.</p></details><details><summary>Which TVs does it run on?</summary><p>Google TV and Android TV from Android 9: TCL, Sony, Hisense, Philips, Xiaomi, Chromecast with Google TV, Google TV Streamer, onn 4K and NVIDIA Shield.</p></details><details><summary>Why does TCL need appops?</summary><p>TCL blocks background services by default, so the home switch and the safety watchdog would never run. Two appops lines allow them.</p></details><details><summary>How do I go back?</summary><p>Open WatchMatch, then Home Screen, then Original. Everything returns as it was. After three crashes in five minutes it goes back by itself.</p></details><details><summary>Do I need a TMDB key?</summary><p>Only for trending picks and screensaver photos. It is free and takes two minutes.</p></details>
+  </div>
+</section>
+</main>
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-row">
+      <a class="brand" href="#top"><img src="assets/icon-512.png" alt="" width="28" height="28"><span>Watch<b>Match</b></span></a>
+      <nav aria-label="GitHub"><a href="https://github.com/mamer12/watchmatch">GitHub</a><a href="https://github.com/mamer12/watchmatch/releases">Releases</a><a href="https://github.com/mamer12/watchmatch/issues">Issues</a></nav>
+    </div>
+    <p>Made by Mustafa Amer. MIT license.</p>
+    <p class="fine">Not affiliated with Google, TCL or any streaming service. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+  </div>
+</footer>
+<script src="app.js" defer></script>
+</body>
+</html>

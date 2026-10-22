@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- {app} and {catalog} are filled in by build.sh from config.properties (app_name, catalog_name). -->
+<resources>
+    <string name="app_name">{app}</string>
+    <string name="catalog_name">{catalog}</string>
+    <string name="catalog_helper_label">{app}: {catalog}</string>
+    <string name="remote_key_service">Lets the app buttons on the remote (Netflix, YouTube, Prime Video, TCL Channel) open the apps you picked in {app}, from any app. It only reads those buttons.</string>
+    <string name="catalog_helper">{app}\'s {catalog} helper: notes the titles you open in the catalog\'s TV app for the home screen\'s Continue watching, and opens a title you pick on the home screen (it presses Search and types it). It only sees that app\'s screens.</string>
+</resources>

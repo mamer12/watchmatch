@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="pt-BR" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  
+  <title>WatchMatch: a tela inicial rápida e sem anúncios para a sua TV</title>
+  <meta name="description" content="Tela inicial de código aberto para Android TV e Google TV, com busca em linguagem natural (Spark) em árabe e inglês, interface em árabe totalmente da direita para a esquerda, placares ao vivo e zero anúncios. Um botão desfaz tudo.">
+  <link rel="canonical" href="https://mamer12.github.io/watchmatch/pt/">
+  <link rel="alternate" hreflang="en" href="https://mamer12.github.io/watchmatch/"><link rel="alternate" hreflang="pt-BR" href="https://mamer12.github.io/watchmatch/pt/"><link rel="alternate" hreflang="ar" href="https://mamer12.github.io/watchmatch/ar/"><link rel="alternate" hreflang="x-default" href="https://mamer12.github.io/watchmatch/">
+  <meta name="theme-color" content="#0B1433">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:url" content="https://mamer12.github.io/watchmatch/pt/">
+  <meta property="og:title" content="WatchMatch">
+  <meta property="og:description" content="Sem anúncios. Busca Spark em árabe e inglês. Placares ao vivo. Uma tela inicial que responde em 100 ms.">
+  <meta property="og:image" content="https://mamer12.github.io/watchmatch/assets/og-pt.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="WatchMatch">
+  <meta name="twitter:description" content="Sem anúncios. Busca Spark em árabe e inglês. Placares ao vivo. Uma tela inicial que responde em 100 ms.">
+  <meta name="twitter:image" content="https://mamer12.github.io/watchmatch/assets/og-pt.jpg">
+  <link rel="icon" type="image/png" href="../assets/favicon-64.png">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+  <link rel="preload" href="../assets/fonts/InterVariable.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" as="image" href="../assets/media/home.webp" type="image/webp">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Ir para o conteúdo</a>
+<header class="nav" id="nav">
+  <a class="brand" href="#top" aria-label="WatchMatch"><img src="../assets/icon-512.png" alt="" width="32" height="32"><span>Watch<b>Match</b></span></a>
+  <nav class="links" aria-label="Recursos"><a href="#features">Recursos</a><a href="#spark">Spark</a><a href="#arabic">Árabe</a><a href="#install">Instalar</a><a href="#faq">Dúvidas</a></nav>
+  <div class="nav-end">
+    <div class="langs" role="group" aria-label="Idioma"><a href="../" hreflang="en" lang="en" data-lang="en" aria-label="English">EN</a><a href="../pt/" hreflang="pt-BR" lang="pt-BR" data-lang="pt" aria-label="Português" aria-current="true">PT</a><a href="../ar/" hreflang="ar" lang="ar" data-lang="ar" aria-label="العربية">AR</a></div>
+    <a class="btn btn-sm" href="#install">Instalar</a>
+  </div>
+</header>
+<main id="main">
+<section class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <p class="eyebrow">Tela inicial de código aberto para Android TV</p>
+      <h1>Sua TV, <span class="lime">sem o barulho.</span></h1>
+      <p class="lead">O WatchMatch troca a tela inicial de fábrica por uma rápida, sem anúncios e do seu jeito. Busque com as suas palavras, acompanhe seu time ao vivo e desfaça tudo com um botão.</p>
+      <div class="cta">
+        <a class="btn" href="#install">Instalar em 10 minutos</a>
+        <a class="btn btn-ghost" href="https://github.com/mamer12/watchmatch/releases">Baixar o APK</a>
+        <a class="btn btn-link" href="https://github.com/mamer12/watchmatch">Ver no GitHub</a>
+      </div>
+      <ul class="badges"><li>Licença MIT</li><li>Árabe e RTL</li><li>Sem root</li><li>1,5 MB</li></ul>
+    </div>
+    <div class="hero-shot" data-reveal><figure class="tv tv-hero"><div class="tv-bezel"><video class="shot" src="../assets/media/tour.mp4" poster="../assets/media/home.webp" width="1280" height="720" autoplay muted loop playsinline preload="metadata" aria-label="Um passeio pelo WatchMatch: tela inicial, Descobrir, Apps, busca Spark e Ajustes (interface em inglês)"></video></div><span class="tv-stand" aria-hidden="true"></span></figure></div>
+  </div>
+</section>
+
+<section class="stats" aria-labelledby="stats-h">
+  <div class="wrap">
+    <h2 id="stats-h">Medido, não prometido.</h2>
+    <p class="sub">Números de uma TCL de 2 GB com Android 11, o tipo de TV que faz a tela inicial de fábrica suar.</p>
+    <div class="stat-grid"><div class="stat" data-reveal><b>53 MB</b><span>Memória da tela inicial</span><small>A de fábrica usa 69 MB.</small></div><div class="stat" data-reveal><b>100 ms</b><span>Do botão Início à tela</span><small>A de fábrica leva 180 ms.</small></div><div class="stat" data-reveal><b>1,5 MB</b><span>O APK inteiro</span><small>Sem bibliotecas, sem Gradle.</small></div><div class="stat" data-reveal><b>0</b><span>Anúncios, sempre</span><small>Apps de propaganda ficam desligados.</small></div></div>
+    <figure class="fig" data-reveal><div class="tv-bezel"><img class="shot" src="../assets/media/settings-performance.webp" width="1280" height="720" alt="Ajustes do WatchMatch, página Desempenho, comparando tempo do botão Início e memória com a tela inicial original" loading="lazy" decoding="async"></div><figcaption>Ajustes, Desempenho: o WatchMatch medido contra a tela inicial original nesta TV.</figcaption></figure>
+  </div>
+</section>
+
+<section class="why">
+  <div class="wrap">
+    <h2>Uma TV não deveria ser tão chata de usar.</h2>
+    <div class="cards3"><div class="card" data-reveal><h3>Anúncios na sua sala</h3><p>Cartões patrocinados, trailers que tocam sozinhos e fileiras que você não consegue tirar.</p></div><div class="card" data-reveal><h3>Uma tela inicial que pensa</h3><p>Aperta Início e espera. Numa TV de 2 GB, cada toque custa um pouco.</p></div><div class="card" data-reveal><h3>Apps que você nunca instalou</h3><p>Apps de demonstração, de loja e de propaganda que vieram com a TV e continuam rodando.</p></div></div>
+    <p class="why-end">O WatchMatch é a resposta: mostra só o que é seu.</p>
+  </div>
+</section>
+
+<section id="features" class="features">
+  <div class="wrap">
+    <h2>Tudo numa tela, nada que você não escolheu.</h2>
+    <div class="ft-wrap" data-reveal><table class="ft"><thead><tr><th scope="col">Recurso</th><th scope="col">O que você ganha</th></tr></thead><tbody><tr class="grp"><th colspan="2" scope="colgroup">Início</th></tr><tr><th scope="row">Fileiras do seu jeito</th><td>Reordene ou esconda fileiras, ou comece de uma predefinição: Cinema, Esportes, Crianças ou Mínimo. Escolha os apps da prateleira.</td></tr><tr><th scope="row">Descobrir e Apps</th><td>Um Top 10 semanal, o que está em alta nos seus apps de streaming, apps recentes, todos os apps e entradas.</td></tr><tr><th scope="row">Controle e celular</th><td>Na TCL, escolha o que abrem os botões Netflix, YouTube e Prime. Envie links e buscas do celular, só na sua rede e com PIN.</td></tr><tr class="grp"><th colspan="2" scope="colgroup">Busca</th></tr><tr><th scope="row">Spark</th><td>Diga ou digite uma frase em árabe ou inglês. Ela vira filtros que você remove e procura nos resultados do TMDB e nos apps da TV.</td></tr><tr class="grp"><th colspan="2" scope="colgroup">Esportes</th></tr><tr><th scope="row">Central de Jogos</th><td>Placares ao vivo com escudos, cartão no dia do jogo do seu time, lembrete 10 minutos antes sobre qualquer app, alertas de gol e horário de silêncio.</td></tr><tr class="grp"><th colspan="2" scope="colgroup">Visual e acessibilidade</th></tr><tr><th scope="row">Árabe, totalmente da direita para a esquerda</th><td>A interface inteira se espelha quando a TV fala árabe. Algarismos ocidentais ou arábicos, busca por voz em árabe.</td></tr><tr><th scope="row">Visual</th><td>Claro, escuro ou pelo pôr do sol real da sua cidade. Cor de destaque, relógio de 12 ou 24 horas, Celsius ou Fahrenheit.</td></tr><tr><th scope="row">Acessibilidade</th><td>Texto maior, alto contraste e menos movimento.</td></tr><tr><th scope="row">Ajustes com prévia</th><td>Cada ajuste explica o que faz e mostra o efeito enquanto você mexe.</td></tr><tr class="grp"><th colspan="2" scope="colgroup">Desempenho</th></tr><tr><th scope="row">Leve para o hardware</th><td>APK de 1,5 MB, um único Canvas, sem alocações ao desenhar. O modo Lite é escolhido sozinho em TVs fracas. Botão Início em 100 ms contra 180 ms.</td></tr><tr class="grp"><th colspan="2" scope="colgroup">Confiabilidade</th></tr><tr><th scope="row">À prova de queda de energia</th><td>Hora confiável, novas tentativas, fileiras salvas e gravação segura mantêm tudo firme depois de um apagão.</td></tr><tr><th scope="row">Vigia</th><td>Volta à tela inicial de fábrica após 3 falhas em 5 minutos.</td></tr><tr class="grp"><th colspan="2" scope="colgroup">Privacidade e segurança</th></tr><tr><th scope="row">Sem anúncios, sem rastreio</th><td>Sem contas e sem análise de uso. Suas chaves ficam num arquivo no seu computador.</td></tr><tr><th scope="row">Sem root, totalmente reversível</th><td>Apps são desligados, nunca desinstalados. O Original traz tudo de volta.</td></tr><tr class="grp"><th colspan="2" scope="colgroup">Plataformas</th></tr><tr><th scope="row">TVs</th><td>Google TV e Android TV (Android 9+).</td></tr></tbody></table></div>
+  </div>
+</section>
+
+
+
+<section id="spark" class="spark">
+  <div class="wrap two">
+    <div>
+      <p class="eyebrow">Spark</p>
+      <h2>O Spark entende frases.</h2>
+      <p class="lead">Aperte o microfone ou digite. O Spark separa o que você diz em filtros de tipo, gênero, época e origem, e procura nos resultados do TMDB e nos apps instalados na TV ao mesmo tempo.</p>
+      <ul class="examples"><li data-reveal><q dir="auto">افلام عربيه قديمه</q><span>Filmes árabes antigos</span></li><li data-reveal><q dir="auto">new gangster movies</q><span>Crime, dos últimos 3 anos</span></li><li data-reveal><q dir="auto">مسلسل بريكينج باد</q><span>A série Breaking Bad</span></li><li data-reveal><q dir="auto">foreign comedy movies</q><span>Comédia, que não seja árabe</span></li></ul>
+      <ul class="ticks"><li>Filtros que você tira com um toque</li><li>Épocas: novo, antigo, uma década, um ano ou um intervalo</li><li>Origens: árabe, turco, coreano, indiano, japonês, egípcio, do Golfo, americano</li><li>Palavras desconhecidas viram o título</li></ul>
+    </div>
+    <div><figure class="fig" data-reveal><div class="tv-bezel"><img class="shot" src="../assets/media/spark.webp" width="1280" height="720" alt="O Spark transformando a frase new comedy movies nos filtros Movies, Comedy e New, com resultados na Apple TV e na Netflix (interface em inglês)" loading="lazy" decoding="async"></div></figure></div>
+  </div>
+</section>
+
+<section id="arabic" class="arabic">
+  <div class="wrap narrow">
+    <p class="eyebrow">Árabe</p>
+    <h2>O árabe é um recurso, não uma tradução.</h2>
+    <p class="lead">Quando a TV está em árabe, a interface inteira passa para a direita: abas, fileiras, caminho do foco, ajustes e os números do Top 10.</p>
+    <ul class="ticks"><li>Segue o idioma da TV sozinho, ou force inglês, português, espanhol ou árabe</li><li>Algarismos ocidentais (123) ou arábicos (١٢٣), você escolhe</li><li>Busca por voz em árabe e frases em árabe no Spark</li><li>Texto misto mantém a direção, como um título em inglês dentro de uma frase em árabe</li></ul>
+    <p class="note">As imagens desta página mostram a interface em inglês.</p>
+  </div>
+</section>
+
+<section class="two-cols sports">
+  <div class="wrap two flip2">
+    <div><h2>Nunca perca o apito inicial.</h2><p class="lead">Escolha seus times e campeonatos na TV. Os jogos deles vão na frente, um lembrete aparece 10 minutos antes sobre qualquer app e um placar ao vivo fica no canto com alertas de gol. O horário de silêncio deixa a casa dormir.</p></div>
+    <div><figure class="fig" data-reveal><div class="tv-bezel"><img class="shot" src="../assets/media/matches.webp" width="1280" height="577" alt="Fileira da Central de Jogos com placares ao vivo e escudos, e os jogos de hoje à noite (interface em inglês)" loading="lazy" decoding="async"></div><figcaption>Central de Jogos: placares ao vivo com escudos e minuto, e os jogos de hoje à noite.</figcaption></figure></div>
+  </div>
+</section>
+
+<section class="control">
+  <div class="wrap narrow"><h2>Deixe o início com a sua cara.</h2><ul class="ticks"><li>Editor de fileiras com predefinições Cinema, Esportes, Crianças e Mínimo</li><li>Prateleira de apps na ordem que você quiser</li><li>Botões do controle (TCL): escolha o que Netflix, YouTube e Prime abrem</li><li>Claro, escuro ou pelo pôr do sol real; cor de destaque; relógio de 12 ou 24 horas</li><li>Tamanho do texto, alto contraste e menos movimento</li><li>Companheiro no celular: envie links e buscas, só na sua rede, com PIN</li></ul></div>
+</section>
+
+<section class="privacy">
+  <div class="wrap">
+    <h2>Seguro desde o projeto.</h2>
+    <div class="grid4"><div class="card" data-reveal><h3>Sem anúncios, sem rastreio</h3><p>Sem contas e sem análise de uso.</p></div><div class="card" data-reveal><h3>Suas chaves são suas</h3><p>As chaves de API ficam num arquivo no seu computador que o git ignora.</p></div><div class="card" data-reveal><h3>Sem root</h3><p>Usa o ADB da própria TV, por dentro dela.</p></div><div class="card" data-reveal><h3>Totalmente reversível</h3><p>Apps são desligados, nunca desinstalados. O Original desfaz tudo.</p></div></div>
+  </div>
+</section>
+
+<section id="install" class="install">
+  <div class="wrap">
+    <h2>Instale em uns dez minutos.</h2>
+    <p class="sub">Você precisa de uma Android TV ou Google TV (Android 9+) e de um computador no mesmo Wi-Fi. Primeiro ligue a depuração USB: Configurações, Sistema, Sobre, toque 7 vezes no número da versão e abra Opções do desenvolvedor.</p>
+    <div class="cards3 paths"><div class="card path" data-reveal><span class="num">1</span><h3>Com o Claude Code</h3><small>O jeito fácil</small><pre dir="ltr"><code>git clone https://github.com/mamer12/watchmatch
+cd watchmatch
+# abra o Claude Code aqui e diga:
+# &quot;Instale o WatchMatch na minha TV em 192.168.1.50. Moro em Lisboa.&quot;</code></pre></div><div class="card path" data-reveal><span class="num">2</span><h3>Com o adb</h3><small>O jeito manual</small><pre dir="ltr"><code>./build.sh
+adb connect 192.168.1.50:5555
+adb install -r WatchMatch.apk
+# só em TVs TCL:
+adb shell &quot;appops set io.watchmatch AUTO_START allow || appops set io.watchmatch APP_AUTO_START allow&quot;</code></pre></div><div class="card path" data-reveal><span class="num">3</span><h3>Pelas Releases</h3><small>Sem ferramentas</small><p>Baixe o WatchMatch.apk e rode adb install -r. Para os destaques em alta, compile você mesmo com a sua chave do TMDB.</p><a class="btn btn-sm" href="https://github.com/mamer12/watchmatch/releases">Abrir as Releases</a></div></div>
+  </div>
+</section>
+
+<section id="faq" class="faq">
+  <div class="wrap narrow">
+    <h2>Dúvidas</h2>
+    <details><summary>É seguro?</summary><p>Nunca desinstala nada, mantém imagem, som, entradas e serviços do Google numa lista protegida e dá para desfazer tudo. O código é aberto, leia à vontade.</p></details><details><summary>Precisa de root?</summary><p>Não. Depois que você permite a depuração uma vez, o app usa o ADB da própria TV em 127.0.0.1.</p></details><details><summary>Em quais TVs roda?</summary><p>Google TV e Android TV a partir do Android 9: TCL, Sony, Hisense, Philips, Xiaomi, Chromecast com Google TV, Google TV Streamer, onn 4K e NVIDIA Shield.</p></details><details><summary>Por que a TCL precisa do appops?</summary><p>A TCL bloqueia serviços em segundo plano por padrão, então a troca e o vigia de segurança nunca rodariam. Duas linhas de appops liberam.</p></details><details><summary>Como volto atrás?</summary><p>Abra o WatchMatch, depois Tela inicial, depois Original. Tudo volta como era. Após três falhas em cinco minutos, ele volta sozinho.</p></details><details><summary>Preciso de chave do TMDB?</summary><p>Só para os destaques em alta e as fotos da tela de descanso. É grátis e leva dois minutos.</p></details>
+  </div>
+</section>
+</main>
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-row">
+      <a class="brand" href="#top"><img src="../assets/icon-512.png" alt="" width="28" height="28"><span>Watch<b>Match</b></span></a>
+      <nav aria-label="GitHub"><a href="https://github.com/mamer12/watchmatch">GitHub</a><a href="https://github.com/mamer12/watchmatch/releases">Releases</a><a href="https://github.com/mamer12/watchmatch/issues">Issues</a></nav>
+    </div>
+    <p>Feito por Mustafa Amer. Licença MIT.</p>
+    <p class="fine">Sem vínculo com Google, TCL ou qualquer serviço de streaming. Este produto usa a API do TMDB, mas não é endossado nem certificado pelo TMDB.</p>
+  </div>
+</footer>
+<script src="../app.js" defer></script>
+</body>
+</html>

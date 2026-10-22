@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="io.watchmatch"
+    android:versionCode="1"
+    android:versionName="1.0">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Watchme+'s Continue watching and My List for the home screen (WatchData; same signing key). -->
+    <uses-permission android:name="io.watchmeplus.permission.READ_DATA" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Voice search in the app's own search box (SpeechRecognizer); asked on the first use, no audio is kept. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- After the TV boots (and after a TV update), checks that WatchMatch mode is still as you left it. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Recent apps row (granted over the TV's own ADB when switching to WatchMatch) -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+    <!-- Closes the app just left when Home is pressed, so the TV keeps memory free -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+    <!-- Match Centre: the reminder and live score over other apps (granted over the TV's own ADB when switching) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <!-- Android 11+: without this list the app can't "see" the other apps (getLeanbackLaunchIntentForPackage
+         returns null). The shelf and streaming apps, the live TV apps and, through the <intent>, every TV app
+         (for "All Apps"). -->
+    <queries>
+        <package android:name="com.netflix.ninja" />
+        <package android:name="com.google.android.youtube.tv" />
+        <package android:name="com.amazon.amazonvideo.livingroom" />
+        <package android:name="com.disney.disneyplus" />
+        <package android:name="com.wbd.stream" />
+        <package android:name="com.apple.atve.androidtv.appletv" />
+        <package android:name="com.hulu.livingroomplus" />
+        <package android:name="com.cbs.ott" />
+        <package android:name="com.peacocktv.peacockandroid" />
+        <package android:name="com.globo.globotv" />
+        <package android:name="com.spotify.tv.android" />
+        <package android:name="com.tcl.tv" />
+        <package android:name="com.google.android.tv" />
+        <package android:name="com.mediatek.wwtv.tvcenter" />
+        <package android:name="com.sony.dtv.tvx" />
+        <package android:name="com.shabakaty.cbox.cinemana" />
+        <package android:name="io.watchmeplus" />
+        <!-- Spark: apps it finds titles in, or sends the search to. -->
+        <package android:name="net.mbc.shahidTV" />
+        <package android:name="com.osn.go" />
+        <package android:name="com.todtv.tod" />
+        <package android:name="com.parsifal.starz" />
+        <package android:name="iq.almanasa.tvandroid" />
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="content" android:host="android.media.tv" />
+        </intent>
+        <!-- Spark: the apps' own search screens, to send them what was said. -->
+        <intent>
+            <action android:name="android.intent.action.SEARCH" />
+        </intent>
+        <!-- Voice search: the TV's own speech recognizer. -->
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+        <!-- And its service, which the search box listens through (SpeechRecognizer). -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+    <application
+        android:name=".App"
+        android:label="@string/app_name"
+        android:icon="@drawable/icon"
+        android:banner="@drawable/banner"
+        android:allowBackup="false"
+        android:networkSecurityConfig="@xml/network_security_config">
+
+        <!-- The app's icon opens the settings (switch between WatchMatch and the original home screen). -->
+        <activity
+            android:name=".SettingsActivity"
+            android:process=":home"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:launchMode="singleTask"
+            android:taskAffinity="io.watchmatch.settings"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
+            android:theme="@style/WatchMatch.Home">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Watchme+ (the catalog, the Netflix way) with its own player, in its own process (:cinema): a
+             problem there never counts against the home screen's safety net. Mostly installed on its own as
+             WatchMePlus.apk (build-watchmeplus.sh); this copy has no icon and opens when that one isn't installed. -->
+        <activity
+            android:name=".CinemaActivity"
+            android:process=":cinema"
+            android:exported="true"
+            android:label="@string/catalog_name"
+            android:icon="@drawable/cinema_icon"
+            android:banner="@drawable/cinema_banner"
+            android:launchMode="singleTask"
+            android:taskAffinity="io.watchmatch.cinema"
+            android:screenOrientation="landscape"
+            android:windowSoftInputMode="adjustNothing|stateHidden"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
+            android:theme="@style/WatchMatch.Cinema" />
+
+        <!-- The catalog's first launch: what you like, for the recommendations. -->
+        <activity
+            android:name=".CinemaWelcome"
+            android:process=":cinema"
+            android:exported="false"
+            android:label="@string/catalog_name"
+            android:taskAffinity="io.watchmatch.cinema"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
+            android:theme="@style/WatchMatch.Cinema" />
+
+        <activity
+            android:name=".PlayerActivity"
+            android:process=":cinema"
+            android:exported="false"
+            android:label="@string/catalog_name"
+            android:taskAffinity="io.watchmatch.cinema"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
+            android:theme="@style/WatchMatch.Cinema" />
+
+        <!-- The home screen asks Watchme+'s copy (in :cinema, where its data lives) to pull from the sync backend. -->
+        <provider
+            android:name=".SyncProvider"
+            android:process=":cinema"
+            android:authorities="io.watchmatch.sync"
+            android:exported="false" />
+
+        <!-- The home screen. Its own process (:home): if it ever crashes, the safety net in the main process still
+             works. It only becomes the TV's home screen in WatchMatch mode (cmd package set-home-activity). -->
+        <activity
+            android:name=".HomeActivity"
+            android:process=":home"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:stateNotNeeded="true"
+            android:clearTaskOnLaunch="true"
+            android:resumeWhilePausing="true"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
+            android:theme="@style/WatchMatch.Home">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".Screensaver"
+            android:process=":home"
+            android:enabled="@bool/dream_in_home"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
+
+        <!-- The same screensaver on Android 11, in the main process (see ScreensaverAlone). -->
+        <service
+            android:name=".ScreensaverAlone"
+            android:enabled="@bool/dream_alone"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
+
+        <!-- The switches, as background jobs in the main process. -->
+        <service
+            android:name=".ModeJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <!-- One search for everything (the magnifier on the home screen's bar). Same process as the home screen.
+             Exported for the system's search (ACTION_SEARCH): it only searches, nothing else comes in. -->
+        <activity
+            android:name=".SearchActivity"
+            android:process=":home"
+            android:exported="true"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
+            android:screenOrientation="landscape"
+            android:windowSoftInputMode="stateVisible|adjustResize">
+            <!-- The system's search with a query (SearchManager.QUERY). -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEARCH" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <!-- Match Centre: your team's reminder and live score over any app, from 10 min before kick-off to the end. -->
+        <service
+            android:name=".MatchWatch"
+            android:process=":home"
+            android:exported="false" />
+        <!-- The catalog: notes the titles opened there and opens one picked on the home screen. Only the catalog's screens. -->
+        <service
+            android:name=".CatalogHelper"
+            android:process=":home"
+            android:exported="true"
+            android:label="@string/catalog_helper_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/catalog_helper" />
+        </service>
+        <!-- The remote's app buttons from inside any app (Settings > Remote Buttons). Same process as the settings. -->
+        <service
+            android:name=".RemoteKeyService"
+            android:process=":home"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/remote_key_service" />
+        </service>
+
+        <receiver
+            android:name=".HomeReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

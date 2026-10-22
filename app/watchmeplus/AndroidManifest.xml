@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Watchme+ on its own (WatchMePlus.apk, built by build-watchmeplus.sh): the same code as WatchMatch's, renamed to
+     io.watchmeplus at link time, with only its own screens. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="io.watchmatch"
+    android:versionCode="1"
+    android:versionName="1.0">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Trailers open in YouTube. -->
+    <queries>
+        <package android:name="com.google.android.youtube.tv" />
+    </queries>
+
+    <!-- WatchMatch (signed with the same key) reads Continue watching and My List for its home screen. -->
+    <permission
+        android:name="io.watchmeplus.permission.READ_DATA"
+        android:protectionLevel="signature" />
+
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+    <application
+        android:name=".App"
+        android:label="@string/catalog_name"
+        android:icon="@drawable/cinema_icon"
+        android:banner="@drawable/cinema_banner"
+        android:allowBackup="false"
+        android:networkSecurityConfig="@xml/network_security_config">
+
+        <activity
+            android:name=".CinemaActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="landscape"
+            android:windowSoftInputMode="adjustNothing|stateHidden"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
+            android:theme="@style/WatchMatch.Cinema">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".CinemaWelcome"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
+            android:theme="@style/WatchMatch.Cinema" />
+
+        <activity
+            android:name=".PlayerActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection"
+            android:theme="@style/WatchMatch.Cinema" />
+
+        <provider
+            android:name=".WatchData"
+            android:authorities="io.watchmeplus.data"
+            android:exported="true"
+            android:readPermission="io.watchmeplus.permission.READ_DATA" />
+    </application>
+</manifest>

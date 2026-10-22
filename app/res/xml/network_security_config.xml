@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- HTTPS everywhere, except the player's own server on this TV (Streamer, 127.0.0.1), which never leaves it, and
+     Google's connectivity check, whose Date header gives the time while the TV's clock is wrong (TrustedTime: HTTPS
+     fails until the clock is right). Nothing is sent to those two but the request. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">connectivitycheck.gstatic.com</domain>
+        <domain includeSubdomains="false">clients3.google.com</domain>
+    </domain-config>
+</network-security-config>
