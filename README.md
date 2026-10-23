@@ -8,13 +8,15 @@
 
 No ads. No promo apps. A search that understands Arabic sentences and an interface that is fully right to left. Live match scores. One button to undo it all.
 
+[![Beta](https://img.shields.io/badge/status-beta-C8FF3A?style=flat-square&labelColor=0B1433)](#beta-and-contributing)
+[![GitHub](https://img.shields.io/badge/GitHub-mamer12%2Fwatchmatch-C8FF3A?style=flat-square&labelColor=0B1433)](https://github.com/mamer12/watchmatch)
 [![License: MIT](https://img.shields.io/badge/license-MIT-C8FF3A?style=flat-square&labelColor=0B1433)](LICENSE)
 [![Android TV](https://img.shields.io/badge/Android%20TV%20%26%20Google%20TV-9%2B-C8FF3A?style=flat-square&labelColor=0B1433)](#install)
 [![Arabic RTL](https://img.shields.io/badge/Arabic-RTL-C8FF3A?style=flat-square&labelColor=0B1433)](#features)
 [![No ads](https://img.shields.io/badge/ads-none-C8FF3A?style=flat-square&labelColor=0B1433)](#features)
 [![APK size](https://img.shields.io/badge/APK-1.5%20MB-C8FF3A?style=flat-square&labelColor=0B1433)](#performance)
 
-[**Website**](https://mamer12.github.io/watchmatch/) · [**Download**](https://github.com/mamer12/watchmatch/releases) · [Install](#install) · [Features](#features) · [Spark](#spark-say-what-you-want-to-watch)
+[**Website**](https://mamer12.github.io/watchmatch/) · [**GitHub**](https://github.com/mamer12/watchmatch) · [**Download**](https://github.com/mamer12/watchmatch/releases) · [Install](#install) · [Features](#features) · [Spark](#spark-say-what-you-want-to-watch)
 
 <img src="docs/assets/media/tour.gif" width="900" alt="A tour of WatchMatch: the home screen, Discover, match times and Ask Spark">
 
@@ -41,6 +43,7 @@ press away if you ever miss it.
 | Remote and phone | On TCL, choose what the Netflix, YouTube and Prime buttons open. Send a link or a search from your phone: home network only, PIN protected. |
 | **Search** | |
 | Spark | Say or type a sentence in Arabic or English. It becomes filter chips you can remove, and searches TMDB results and the apps installed on your TV. |
+| Ask Spark | A short chat that asks how you feel and what you have in mind, then picks titles for you. Open it from the sparkle icon next to search. Answer with buttons, typing or your voice, in any step. The AI part is optional: without it, fixed questions lead to the same filters. |
 | **Sports** | |
 | Match Centre | Live scores with crests, a match-day card for your team, a reminder 10 minutes before kick-off over any app, goal alerts and quiet hours. |
 | **Look & accessibility** | |
@@ -210,6 +213,14 @@ Watchme+ has up to 6 profiles, each with its own **Continue watching**, **My Lis
 - **Kids profile:** the family filter and *Skip sensitive scenes* are always on; no Sync, Reset or Profiles in its Settings.
 - **PIN** (4 to 6 digits, optional per profile): needed to enter that profile; leaving a Kids profile, opening *Manage profiles* or resetting needs the PIN of an adult profile that has one (no PIN set, no prompt). Five wrong tries lock it for 5 minutes. A PIN is only a family lock, not strong security: the hash syncs with the profile.
 - **Sync:** the profile list is one settings row, `profiles`; each profile's rows carry its id (`<id>~<key>`, settings as `pref:<id>:<name>`), and rows from before profiles belong to *Me*. Checks: `app/test/io/watchmatch/ProfileRulesCheck.java`.
+
+## Beta and contributing
+
+WatchMatch is in beta: it runs on the author's own TV every day, and rough edges are expected. It is open source and pull requests are welcome.
+
+- Repository: [github.com/mamer12/watchmatch](https://github.com/mamer12/watchmatch). Report a problem or an idea in [Issues](https://github.com/mamer12/watchmatch/issues).
+- Before a pull request: keep the code dependency-free and the home screen at 60 fps (no allocations while drawing), add text in Portuguese, English, Spanish and Arabic, and run the checks under `app/test/io/watchmatch/` (each has its `javac` line in its header). `./build.sh` must end with `Built WatchMatch.apk`.
+- Never commit `config.properties`, a keystore or any key.
 
 ## Going back to the original home screen
 
