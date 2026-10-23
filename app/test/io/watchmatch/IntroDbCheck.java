@@ -28,6 +28,19 @@ public final class IntroDbCheck {
 
     public static void main(String[] args) throws Exception {
         eq("url", "https://api.theintrodb.org/v2/media?tmdb_id=1396&season=1&episode=2", IntroDb.url(1396, 1, 2));
+        eq("movie url", "https://api.theintrodb.org/v2/media?tmdb_id=603", IntroDb.movieUrl(603));
+        next = new IntroDb.Reply(200, "{\"tmdb_id\":603,\"type\":\"movie\",\"credits\":[{\"start_ms\":7000000}]}");
+        java.util.Map<String, String> mem = new java.util.HashMap<>();
+        IntroDb.Cache mc = new IntroDb.Cache() {
+            public String get(String k) { return mem.get(k); }
+            public void put(String k, String v) { mem.put(k, v); }
+        };
+        eq("movie credits", 7000000L, IntroDb.lookupMovie(603, HTTP, mc, 1000).credits);
+        int before = calls;
+        eq("movie credits cached", 7000000L, IntroDb.lookupMovie(603, HTTP, mc, 2000).credits);
+        eq("movie cached: no second call", before, calls);
+        eq("movie bad id skips the network", null, IntroDb.lookupMovie(0, HTTP, mc, 1000));
+        calls = 0;
         IntroDb.Found f = IntroDb.parse(HIT);
         eq("one intro kept (the 2 s one dropped)", 1, f.intros.size());
         eq("intro start", 228664L, f.intros.get(0)[0]);

@@ -39,9 +39,9 @@ import java.util.concurrent.Executors;
  */
 public class TonightActivity extends Activity implements Thumbs.Listener {
     // Search's own measures (1920 space): the side margin, the cards, their focus.
-    private static final int M = 96, POSTER_W = 216, POSTER_H = 324, GAP = 24, RADIUS = 14, RING = 4, RING_OUT = 3, ROOM = 28;
+    private static final int M = 96, POSTER_W = 264, POSTER_H = 396, GAP = 28, RADIUS = 14, RING = 4, RING_OUT = 3, ROOM = 36, FADE = 90;
     private static final int PILL_H = 76, MIC = 88, BUBBLE_W = 1100, FIELD_W = 1100;
-    private static final float FOCUS_SCALE = 1.08f;
+    private static final float FOCUS_SCALE = 1.06f;
     private static final int FIELD = 0xFF1C1C21, INK = 0xB3FFFFFF, SUB_INK = 0x80FFFFFF, PLACEHOLDER = 0xFF1E1F24;
     private static final int MIC_PERMISSION = 2;
 
@@ -103,11 +103,16 @@ public class TonightActivity extends Activity implements Thumbs.Listener {
         picksLine.setVisibility(View.GONE);
         picksRow = new LinearLayout(this);
         picksRow.setClipChildren(false);
-        picksRow.setGravity(Gravity.TOP | (Ui.rtl ? Gravity.RIGHT : Gravity.LEFT));
+        picksRow.setGravity(Gravity.CENTER_VERTICAL | (Ui.rtl ? Gravity.RIGHT : Gravity.LEFT));
+        // Room above and below for the focused card to grow into: its row is as tall as the cards need, whatever it scales.
         picksRow.setPadding(px(M), px(ROOM), px(M), px(ROOM));
         picksLine.setFillViewport(true);
-        picksLine.addView(picksRow);
-        page.addView(picksLine);
+        picksLine.setClipToPadding(false);
+        // The row runs on past the edge: the cards fade out there, which says there are more.
+        picksLine.setHorizontalFadingEdgeEnabled(true);
+        picksLine.setFadingEdgeLength(px(FADE));
+        picksLine.addView(picksRow, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        page.addView(picksLine, new LinearLayout.LayoutParams(-1, 0, 1));      // the screen's height under the heading
         choiceLine = new SearchRows.Edge(this, px(M));
         choiceLine.setFillViewport(true);
         choices = new LinearLayout(this);
@@ -506,13 +511,16 @@ public class TonightActivity extends Activity implements Thumbs.Listener {
         rp.leftMargin = rp.topMargin = -out;
         frame.addView(focusRing, rp);
         col.addView(frame, new LinearLayout.LayoutParams(w, h));
+        col.setGravity(Gravity.TOP);
         final TextView label = cardText(item.title, 25, INK, 1);
         label.setPadding(0, px(14), 0, 0);
         col.addView(label, new LinearLayout.LayoutParams(w, ViewGroup.LayoutParams.WRAP_CONTENT));
-        TextView why = cardText(Ui.digits(pick.reason), 22, SUB_INK, 3);
+        TextView why = cardText(Ui.digits(pick.reason), 22, SUB_INK, 2);
+        why.setMinLines(2);         // every card the same height: focus never moves or clips the row
         why.setPadding(0, px(4), 0, 0);
         col.addView(why, new LinearLayout.LayoutParams(w, ViewGroup.LayoutParams.WRAP_CONTENT));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(w, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.gravity = Gravity.CENTER_VERTICAL;
         if (gap && Ui.rtl) lp.rightMargin = px(GAP);
         else if (gap) lp.leftMargin = px(GAP);
         col.setLayoutParams(lp);

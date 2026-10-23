@@ -18,7 +18,9 @@ final class TonightResolver {
     private TonightResolver() {}
 
     static final int RESULT_LIMIT = 12, PAGES = 2, GENRE_QUERIES = 2, WIDE_PAGES = 3;
-    private static final double GENRE_MATCH_WEIGHT = 4, KEYWORD_WEIGHT = 0.5, UNKNOWN_STARS = 6, MIN_STARS = 5;
+    private static final double GENRE_MATCH_WEIGHT = 4, KEYWORD_WEIGHT = 1, KEYWORD_MAX = 3, UNKNOWN_STARS = 5, MIN_STARS = 5.5,
+            STARS_WEIGHT = 0.6, HIGH_STARS = 7, AFFINITY_CAP = 5, UNASKED_ANIMATION = 2.5, FRESH_BONUS = 1, RECENT_BONUS = 0.5;
+    private static final int FRESH_YEARS = 2, RECENT_YEARS = 8;
 
     /** The catalog's category ids by the server's genre names (music and western have none). */
     private static final Map<String, String> CATEGORY = new HashMap<>();
@@ -143,10 +145,12 @@ final class TonightResolver {
 
     /** Hard filters. Runtime applies to films only (a series' duration is one episode). */
     static List<Item> filter(List<Item> items, TonightProtocol.Filters f, Set<String> exclude) {
-        Set<String> seen = new HashSet<>();
+        Set<String> seen = new HashSet<>(), names = new HashSet<>();
         List<Item> out = new ArrayList<>();
         for (Item t : items) {
             if (exclude.contains(t.id) || !seen.add(t.id)) continue;
+            if (!names.add(sameTitle(t))) continue;                  // the same film under two numbers
+            if (!f.genres.isEmpty() && !sharesGenre(t, f.genres)) continue;     // at least one of what was asked for
             if (TonightProtocol.MOVIE.equals(f.type) && t.series) continue;
             if (TonightProtocol.TV.equals(f.type) && !t.series) continue;
             boolean banned = false;
@@ -161,14 +165,39 @@ final class TonightResolver {
         return out;
     }
 
+    private static boolean sharesGenre(Item t, List<String> wanted) {
+        for (String g : t.genres) if (wanted.contains(g)) return true;
+        return false;
+    }
+
+    /** A title and year as one key, so the same film listed twice shows once. */
+    static String sameTitle(Item t) {
+        return t.title.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]+", "") + "|" + t.year;
+    }
+
+    /**
+     * Higher is better: every wanted genre it has (4 each), what the catalog's viewers rate it, how new it is, the
+     * person's taste (their genres, capped so it never outweighs what they asked for tonight) and the keywords found
+     * in its text. A cartoon nobody asked for or liked is held back.
+     */
     static double score(Item t, TonightProtocol.Filters f, Map<String, Double> affinity, int thisYear) {
-        double s = (t.stars > 0 ? t.stars : UNKNOWN_STARS) * 0.3 + (t.year > 0 && t.year >= thisYear - 2 ? 0.5 : 0);
+        double s = (t.stars > 0 ? t.stars : UNKNOWN_STARS) * STARS_WEIGHT;
+        if (t.year > 0 && t.year >= thisYear - FRESH_YEARS) s += FRESH_BONUS;
+        else if (t.year > 0 && t.year >= thisYear - RECENT_YEARS) s += RECENT_BONUS;
+        double taste = 0;
         for (String g : t.genres) {
             Double a = affinity.get(g);
-            if (a != null) s += a;
+            if (a != null) taste += a;
             if (f.genres.contains(g)) s += GENRE_MATCH_WEIGHT;
         }
-        for (String k : f.keywords) if (!k.isEmpty() && t.text.contains(k)) s += KEYWORD_WEIGHT;
+        s += Math.max(-AFFINITY_CAP, Math.min(AFFINITY_CAP, taste));
+        double words = 0;
+        for (String k : f.keywords) if (!k.isEmpty() && t.text.contains(k)) words += KEYWORD_WEIGHT;
+        s += Math.min(KEYWORD_MAX, words);
+        if (t.genres.contains("animation") && !f.genres.contains("animation")) {
+            Double a = affinity.get("animation");
+            if (a == null || a <= 0) s -= UNASKED_ANIMATION;
+        }
         return s;
     }
 
@@ -185,14 +214,15 @@ final class TonightResolver {
         return TonightText.get(tr, "g:" + genre);
     }
 
-    /** One line, from what actually matched. */
+    /** A short line from what actually matched: the genres it has that were asked for, and its stars when they are high. */
     static String reason(Item t, TonightProtocol.Filters f, Map<String, Double> affinity, TonightText.Tr tr, boolean arabic) {
+        String stars = t.stars >= HIGH_STARS ? " · ★ " + String.format(Locale.US, "%.1f", t.stars) : "";
         List<String> hit = new ArrayList<>();
         for (String g : t.genres) if (f.genres.contains(g) && hit.size() < 2) hit.add(g);
         if (!hit.isEmpty()) {
             StringBuilder names = new StringBuilder();
-            for (String g : hit) names.append(names.length() == 0 ? "" : arabic ? " و" : " + ").append(genreLabel(tr, g));
-            return TonightText.get(tr, "matches") + names;
+            for (String g : hit) names.append(names.length() == 0 ? "" : " · ").append(genreLabel(tr, g));
+            return names + stars;
         }
         String liked = null;
         for (String g : t.genres) {
@@ -201,7 +231,7 @@ final class TonightResolver {
         }
         if (liked != null) return TonightText.get(tr, "youLike") + genreLabel(tr, liked);
         if (f.maxMinutes > 0 && !t.series && t.minutes > 0) return TonightText.get(tr, "fitsTime") + t.minutes + TonightText.get(tr, "min");
-        if (t.stars >= 7) return TonightText.get(tr, "highlyRated") + String.format(Locale.US, "%.1f", t.stars);
+        if (t.stars >= HIGH_STARS) return TonightText.get(tr, "highlyRated") + String.format(Locale.US, "%.1f", t.stars);
         return TonightText.get(tr, "popular");
     }
 

@@ -43,6 +43,8 @@ final class CinemaPreview implements SurfaceHolder.Callback {
     private boolean surfaceReady, showing;
     private int generation;
     private Library.Title pending;
+    /** A title whose page was opened from outside (Spark, search): its preview plays muted and without subtitles, over a page nobody chose to rest on. */
+    private String quietId;
     /** Where it plays: the focused card's picture, or null for the whole screen; the video's own size. */
     private RectF target;
     private int videoW, videoH;
@@ -71,6 +73,7 @@ final class CinemaPreview implements SurfaceHolder.Callback {
     }
 
     void want(Library.Title t, RectF where, long delayMs) {
+        if (t == null || !t.id.equals(quietId)) quietId = null;
         if (t != null && pending != null && t.id.equals(pending.id) && (showing || generation > 0 && player != null)) {
             target = where == null ? null : new RectF(where);      // from the card to its page: it just moves
             cover(videoW, videoH);
@@ -81,6 +84,17 @@ final class CinemaPreview implements SurfaceHolder.Callback {
         askedAt = SystemClock.uptimeMillis();
         target = where == null ? null : new RectF(where);
         if (t != null && CinemaPrefs.previews(activity) != CinemaPrefs.PREVIEW_OFF) handler.postDelayed(start, delayMs);
+    }
+
+    /** The page of title `id` was just opened from outside: let its preview play without sound or subtitles. */
+    void quiet(String id) {
+        quietId = id;
+        if (player != null && quiet()) player.setVolume(0, 0);
+        subtitles = null;
+    }
+
+    private boolean quiet() {
+        return pending != null && pending.id.equals(quietId);
     }
 
     void stop() {
@@ -116,6 +130,7 @@ final class CinemaPreview implements SurfaceHolder.Callback {
         final Library.Title t = pending;
         if (t == null || !surfaceReady) return;
         final int gen = ++generation;
+        final boolean silent = quiet();
         final Library library = Library.get(activity);
         LOADER.execute(() -> {
             try {
@@ -138,7 +153,7 @@ final class CinemaPreview implements SurfaceHolder.Callback {
                 }
                 List<Library.Source> sources = library.sources(video.id);
                 if (sources.isEmpty()) return;
-                loadSubtitles(library, video.id, gen);
+                if (!silent) loadSubtitles(library, video.id, gen);
                 String[] probe = Streamer.probe(PlayerActivity.pick(sources, HEIGHT).url);
                 String address = probe[0];
                 Streamer reader = null;
@@ -216,7 +231,7 @@ final class CinemaPreview implements SurfaceHolder.Callback {
         player = mp;
         mp.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
                 .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE).build());
-        float volume = CinemaPrefs.previews(activity) == CinemaPrefs.PREVIEW_SOUND ? VOLUME : 0;
+        float volume = CinemaPrefs.previews(activity) == CinemaPrefs.PREVIEW_SOUND && !quiet() ? VOLUME : 0;
         mp.setVolume(volume, volume);
         mp.setOnPreparedListener(p -> {
             if (gen != generation) return;

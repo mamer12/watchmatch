@@ -49,7 +49,7 @@ final class CinemaArt {
         posterBottom = new LinearGradient(0, h * 0.45f, 0, h, 0x00000000, 0xF20B0B0D, Shader.TileMode.CLAMP);
         // As Thumbs darkens the wide photos: the left behind the title, the bottom behind the rows.
         videoLeft = new LinearGradient(Ui.rtl ? w : 0, 0, Ui.rtl ? w * 0.28f : w * 0.72f, 0,
-                new int[] {0xE6000000, 0xA6000000, 0x40000000, 0}, new float[] {0, 0.35f, 0.7f, 1}, Shader.TileMode.CLAMP);
+                new int[] {0xEB000000, 0xD0000000, 0x70000000, 0}, new float[] {0, 0.4f, 0.72f, 1}, Shader.TileMode.CLAMP);
         videoBottom = new LinearGradient(0, h * 0.42f, 0, h, new int[] {0, 0x8C000000, 0xF2000000},
                 new float[] {0, 0.45f, 1}, Shader.TileMode.CLAMP);
         // Films come with their black bars in the picture: the top one melts into the page instead of a hard edge.

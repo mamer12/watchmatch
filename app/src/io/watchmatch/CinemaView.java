@@ -564,6 +564,7 @@ final class CinemaView extends View implements Choreographer.FrameCallback, Thum
         if (t == null) return;
         inNav = false;
         details.open(t, t.poster);
+        kickNow();
     }
 
     /** Opened from outside (CinemaActivity.EXTRA_SETTINGS): the Settings page. */
@@ -1514,21 +1515,7 @@ final class CinemaView extends View implements Choreographer.FrameCallback, Thum
         }
         fill.setColor(Ui.alpha(focused ? 0xFF0B0B0D : RED, a));
         float cx = rect.centerX() - 3 * k, cy = y + 3 * k;
-        drawStar(c, cx, cy, 14 * k);
-        drawStar(c, cx + 11 * k, cy - 13 * k, 6.5f * k);
-    }
-
-    /** A four-pointed star with hollow sides (reuses one Path). */
-    private void drawStar(Canvas c, float cx, float cy, float r) {
-        float in = r * 0.18f;
-        sparkle.reset();
-        sparkle.moveTo(cx, cy - r);
-        sparkle.quadTo(cx + in, cy - in, cx + r, cy);
-        sparkle.quadTo(cx + in, cy + in, cx, cy + r);
-        sparkle.quadTo(cx - in, cy + in, cx - r, cy);
-        sparkle.quadTo(cx - in, cy - in, cx, cy - r);
-        sparkle.close();
-        c.drawPath(sparkle, fill);
+        Sparkle.draw(c, fill, sparkle, cx, cy, k);
     }
 
     private void drawSearchIcon(Canvas c, float cx, float cy, int ink) {

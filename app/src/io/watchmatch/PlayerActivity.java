@@ -50,6 +50,10 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     private Library.Title root;
     int index;
     private boolean fromStart;
+    /** The film "Up next" offers after this one (looked up at half way, off the main thread), its button text, and whether it was asked. */
+    private Library.Title moviePick;
+    private String upNextLabel;
+    private boolean pickAsked, startedFromPreview;
     /** Where the first video starts (ms): the second its preview had reached; -1 for its saved place. */
     private long firstAt = -1;
 
@@ -192,6 +196,40 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         return index < playlist.size() - 1;
     }
 
+    /** A film played by itself (not an episode, not a clip): the one that offers "Up next: <film>" from its credits. */
+    private boolean isMovie() {
+        Library.Title t = current();
+        return t != null && root == null && !t.series && playlist.size() == 1;
+    }
+
+    /** The next episode, or the film picked for after this one: what the Next button and the end's countdown go to. */
+    boolean upNextAvailable() {
+        return hasNext() || moviePick != null;
+    }
+
+    /** Autoplay at the end: the setting, and not after a film that began from a preview. */
+    boolean autoplayOn() {
+        return isMovie() ? NextUpRules.movieCounts(CinemaPrefs.autoplay(this), false, startedFromPreview)
+                : CinemaPrefs.autoplay(this);
+    }
+
+    /** "Up next: <film>" (built once per pick), or null when this isn't a film with a pick. */
+    String upNextLabel() {
+        return hasNext() ? null : upNextLabel;
+    }
+
+    /** "Up next: <film> in 5". */
+    String upNextCount(int seconds) {
+        if (hasNext() || moviePick == null) return null;
+        String n = Ui.digits(String.valueOf(seconds)), name = Ui.isolate(shortName(moviePick.title));
+        return Ui.tr("A seguir: " + name + " em " + n, "Up next: " + name + " in " + n, "A continuación: " + name + " en " + n,
+                "التالي: " + name + " خلال " + n);
+    }
+
+    private static String shortName(String s) {
+        return s.length() <= 30 ? s : s.substring(0, 29).trim() + "…";
+    }
+
     boolean isSeries() {
         return root != null && playlist.size() > 1;
     }
@@ -213,6 +251,10 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         prepared = false;
         triedDirect = false;
         upNextSaved = false;
+        moviePick = null;
+        upNextLabel = null;
+        pickAsked = false;
+        startedFromPreview = startedFromPreview || firstAt >= 0;
         ended = false;
         subtitles = null;
         subtitleOffset = 0;
@@ -493,13 +535,64 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         Progress.flush(this);
         // Only here, at the video's natural end, may the next episode start by itself (the overlay's 5 s countdown).
         // Autoplay off: the Next episode button stays, no countdown. Dismissed, a movie or the last episode: done.
-        if (!hasNext() || overlay.nextDismissed()) finish();
+        if (!upNextAvailable() || overlay.nextDismissed()) finish();
         else ended = true;
     }
 
     void next() {
         AppLog.i("next episode starts (video ended: " + ended + ", at " + lastPos / 1000 + " s)");
         if (hasNext()) play(index + 1);
+        else if (moviePick != null) playPick();
+    }
+
+    /** The picked film, as a normal play from its page; this one stays finished when its credits were reached. */
+    private void playPick() {
+        final Library.Title pick = moviePick, t = current();
+        if (pick == null || t == null) return;
+        if (ended || nextUp()) Progress.save(this, t, rootTitle(), rootPoster(), duration(), duration());
+        else saveProgress();
+        Progress.flush(this);
+        AppLog.i("up next film " + pick.id + " after " + t.id);
+        moviePick = null;
+        startActivity(intent(this, java.util.Collections.singletonList(pick), 0, null, false));
+        finish();
+    }
+
+    /** Half way through a film: the catalog's More Like This (its first genre), ranked by MovieNext, off the main thread. */
+    private void resolvePick() {
+        pickAsked = true;
+        final Library.Title t = current();
+        final int gen = generation;
+        if (t == null) return;
+        final Library library = Library.get(this);
+        final java.util.Set<String> skip = new java.util.HashSet<>(CinemaPrefs.disliked(this));
+        final java.util.Set<String> started = new java.util.HashSet<>();
+        for (Progress.Entry e : Progress.everything(this)) {
+            if (e.finished() || e.hidden) skip.add(e.title.id);
+            else if (e.position > 0) started.add(e.title.id);
+        }
+        final java.util.Set<String> liked = new java.util.HashSet<>();
+        for (String g : CinemaPrefs.likedGenres(this)) liked.add(g.toLowerCase(Locale.ROOT));
+        library.background(() -> {
+            String genre = t.genres.isEmpty() ? "" : t.genres.split("·")[0].trim();
+            String id = Recommend.categoryId(genre);
+            List<Library.Title> found = new ArrayList<>(library.genreNow(id == null ? "62" : id, "movies", 0));
+            found.addAll(library.genreNow(id == null ? "62" : id, "movies", 1));
+            List<MovieNext.Cand> cands = new ArrayList<>();
+            for (Library.Title x : found) {
+                cands.add(new MovieNext.Cand(x.id, x.genres, x.stars, x.series, x.poster != null && !x.poster.isEmpty(), started.contains(x.id)));
+            }
+            int best = MovieNext.pick(cands, t.id, t.genres, liked, skip);
+            final Library.Title pick = best < 0 ? null : found.get(best);
+            AppLog.i("up next film for " + t.id + ": " + (pick == null ? "none" : pick.id) + " of " + found.size());
+            handler.post(() -> {
+                if (gen != generation || pick == null) return;
+                moviePick = pick;
+                String name = Ui.isolate(shortName(pick.title));
+                upNextLabel = Ui.tr("A seguir: " + name, "Up next: " + name, "A continuación: " + name, "التالي: " + name);
+                overlay.invalidate();
+            });
+        });
     }
 
     /** Another episode of the playlist, from where it was left. */
@@ -537,6 +630,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
                 }
             }
         }
+        if (NextUpRules.shouldResolve(isMovie(), pickAsked, d, p)) resolvePick();
         if (!upNextSaved && NextUpRules.showing(hasNext(), d, p, info.credits)) markUpNext();
     }
 
@@ -593,7 +687,10 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     private void otherIntros(final Library.Title t, final int gen) {
         introFrom = info.intros.isEmpty() ? FROM_NONE : FROM_CATALOG;
         String key = seriesKey();
-        if (key.isEmpty()) return;
+        if (key.isEmpty()) {
+            if (isMovie() && info.credits < 0) movieCredits(t, gen);
+            return;
+        }
         if (introFrom == FROM_NONE) applyMark(IntroSources.mark(this, key));
         if (introFrom == FROM_CATALOG && info.credits >= 0) return;
         IntroSources.lookup(this, key, root.title, root.other, root.year, t.season, t.episode, found -> handler.post(() -> {
@@ -658,6 +755,15 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         }
     }
 
+    /** A film's credits start from TheIntroDB (the catalog's own wins). */
+    private void movieCredits(final Library.Title t, final int gen) {
+        IntroSources.lookupMovie(this, !t.id.isEmpty() ? t.id : t.title, t.title, t.other, t.year, found -> handler.post(() -> {
+            if (gen != generation || found == null) return;
+            if (info.credits < 0 && found.credits >= 0) info.credits = found.credits;
+            overlay.invalidate();
+        }));
+    }
+
     void clearIntroMark() {
         String key = seriesKey();
         if (key.isEmpty()) return;
@@ -669,7 +775,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
 
     /** The credits of an episode with one after it (NextUpRules): the "Next episode" button. */
     boolean nextUp() {
-        return prepared && (ended || NextUpRules.showing(hasNext(), duration(), position(), info.credits));
+        return prepared && (ended || NextUpRules.showing(upNextAvailable(), duration(), position(), info.credits));
     }
 
     /** Playback reached its natural end and the next episode is still to come (the card counts down on the last frame). */
@@ -810,7 +916,8 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
                 qc.throughput() * 8 / 1e6));
         int support = swapSupport();
         if (support == SWAP_NEVER) deferred = to;
-        else if (support == SWAP_OK) swap.begin(sources.get(to));
+        else if (support == SWAP_OK) AppLog.w("auto swap begin: " + swap.begin(sources.get(to)) + " (canBegin " + swap.canBegin() + ")");
+        else AppLog.w("auto swap waits: memory is short");
     }
 
     private static final int SWAP_OK = 0, SWAP_LATER = 1, SWAP_NEVER = 2;

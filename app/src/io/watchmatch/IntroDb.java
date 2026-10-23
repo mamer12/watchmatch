@@ -54,6 +54,11 @@ final class IntroDb {
         return "https://api.theintrodb.org/v2/media?tmdb_id=" + tmdbId + "&season=" + season + "&episode=" + episode;
     }
 
+    /** A film's entry: no season or episode. */
+    static String movieUrl(int tmdbId) {
+        return "https://api.theintrodb.org/v2/media?tmdb_id=" + tmdbId;
+    }
+
     /** The text of the array under `key` ("" when absent or null). */
     private static String array(String body, String key) {
         int k = body.indexOf("\"" + key + "\"");
@@ -89,7 +94,16 @@ final class IntroDb {
      */
     static Found lookup(int tmdbId, int season, int episode, Http http, Cache cache, long now) throws IOException {
         if (tmdbId <= 0 || season < 0 || episode <= 0) return null;
-        String key = "db:" + tmdbId + ":" + season + ":" + episode;
+        return fetch("db:" + tmdbId + ":" + season + ":" + episode, url(tmdbId, season, episode), http, cache, now);
+    }
+
+    /** The same for a film (its credits start): cached and failing like an episode's. */
+    static Found lookupMovie(int tmdbId, Http http, Cache cache, long now) throws IOException {
+        if (tmdbId <= 0) return null;
+        return fetch("dbm:" + tmdbId, movieUrl(tmdbId), http, cache, now);
+    }
+
+    private static Found fetch(String key, String url, Http http, Cache cache, long now) throws IOException {
         String saved = cache.get(key);
         if (saved != null) {
             String[] p = saved.split("\\|", 3);
@@ -106,7 +120,7 @@ final class IntroDb {
         }
         Reply r;
         try {
-            r = http.get(url(tmdbId, season, episode));
+            r = http.get(url);
         } catch (IOException e) {
             cache.put(key, now + "|0|");
             throw e;

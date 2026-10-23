@@ -55,4 +55,32 @@ final class NextUpRules {
     static boolean playNextAtEnd(boolean hasNext, boolean autoplay, boolean dismissed) {
         return hasNext && counts(autoplay, dismissed);
     }
+
+    // MARK: - Movies: "Up next: <title>" from the credits (the pick is made before, MovieNext)
+
+    /** Shorter than this is a clip or a short, not a film: no pick. */
+    static final long MIN_MOVIE_MS = 30 * 60_000L;
+
+    /** Where the pick is looked up (ms): halfway, long before the credits. */
+    static long resolveAt(long duration) {
+        return duration / 2;
+    }
+
+    /** Look the pick up now: a film, halfway or later, and not asked yet. */
+    static boolean shouldResolve(boolean isMovie, boolean asked, long duration, long position) {
+        return isMovie && !asked && duration >= MIN_MOVIE_MS && position >= resolveAt(duration);
+    }
+
+    /** The film's card: the same credits rule as an episode's, only with a pick in hand (nothing found: nothing shows). */
+    static boolean showingMovie(boolean hasPick, long duration, long position, long creditsStart) {
+        return showing(hasPick, duration, position, creditsStart);
+    }
+
+    /**
+     * The countdown after a film may run: Autoplay on, the card not dismissed, and the film wasn't started from a
+     * preview or trailer (then the button is all there is).
+     */
+    static boolean movieCounts(boolean autoplay, boolean dismissed, boolean fromPreview) {
+        return counts(autoplay, dismissed) && !fromPreview;
+    }
 }

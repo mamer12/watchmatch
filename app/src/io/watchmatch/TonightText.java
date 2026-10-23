@@ -82,11 +82,10 @@ final class TonightText {
         add("e:mid", "De 2000 a 2019", "2000 to 2019", "De 2000 a 2019");
         add("e:old", "Clássicos (antes de 2000)", "Classics (before 2000)", "Clásicos (antes de 2000)");
         // Why a title is on the list.
-        add("matches", "Combina com seu humor: ", "Matches your mood: ", "Encaja con tu ánimo: ");
         add("youLike", "Você gosta de ", "You like ", "Te gusta ");
         add("fitsTime", "Cabe no seu tempo: ", "Fits your time: ", "Cabe en tu tiempo: ");
         add("highlyRated", "Muito bem avaliado: ", "Highly rated: ", "Muy bien valorado: ");
-        add("popular", "Em alta agora", "Popular right now", "Popular ahora");
+        add("popular", "Em alta", "Popular", "Popular");
         add("min", " min", " min", " min");
         // Genres, by the server's name.
         add("g:action", "Ação", "Action", "Acción");

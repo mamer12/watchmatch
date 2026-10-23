@@ -316,6 +316,7 @@ final class PlayerOverlay extends View {
         }
         if (player.isSeries()) addButton(B_EPISODES, Ui.tr("Episódios", "Episodes", "Episodios"));
         if (player.hasNext()) addButton(B_NEXT, Ui.tr("Próximo episódio", "Next episode", "Siguiente episodio"));
+        else if (player.upNextLabel() != null) addButton(B_NEXT, player.upNextLabel());
     }
 
     private void addButton(int id, String name) {
@@ -831,7 +832,7 @@ final class PlayerOverlay extends View {
 
     /** The end's countdown runs: the video ended, autoplay is on, and Back hasn't cancelled it. */
     private boolean counting(long up) {
-        return nextUpSince != 0 && player.ended() && !creditsChosen && CinemaPrefs.autoplay(getContext()) && up - nextUpSince < NEXT_COUNTDOWN_MS;
+        return nextUpSince != 0 && player.ended() && !creditsChosen && player.autoplayOn() && up - nextUpSince < NEXT_COUNTDOWN_MS;
     }
 
     private int countLeft = -1;
@@ -839,12 +840,14 @@ final class PlayerOverlay extends View {
 
     /** "Next episode", or "Next episode in 5" during the end's countdown (built again only when the second changes). */
     private String nextLabel(long up) {
-        if (!counting(up)) return Ui.tr("Próximo episódio", "Next episode", "Siguiente episodio");
+        String film = player.upNextLabel();
+        if (!counting(up)) return film != null ? film : Ui.tr("Próximo episódio", "Next episode", "Siguiente episodio");
         int left = NextUpRules.secondsLeft(up - nextUpSince);
         if (left != countLeft || countLabel == null) {
             countLeft = left;
             String n = Ui.digits(String.valueOf(left));
-            countLabel = Ui.tr("Próximo episódio em " + n, "Next episode in " + n, "Siguiente episodio en " + n,
+            countLabel = film != null ? player.upNextCount(left)
+                    : Ui.tr("Próximo episódio em " + n, "Next episode in " + n, "Siguiente episodio en " + n,
                     "الحلقة التالية خلال " + n);
         }
         return countLabel;
@@ -867,7 +870,7 @@ final class PlayerOverlay extends View {
             return;
         }
         if (nextUpSince == 0) nextUpSince = up;
-        if (NextUpRules.advance(player.hasNext(), true, CinemaPrefs.autoplay(getContext()), creditsChosen, up - nextUpSince)) {
+        if (NextUpRules.advance(player.upNextAvailable(), true, player.autoplayOn(), creditsChosen, up - nextUpSince)) {
             nextUpSince = 0;
             player.next();
         }

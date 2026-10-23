@@ -138,7 +138,10 @@ public class CinemaActivity extends Activity implements CinemaView.Host, CinemaP
         if (id != null && !id.trim().isEmpty()) {
             Library.get(this).title(id.trim(), t -> {
                 if (t != null && playAt >= 0) playFrom(t, playAt);
-                else if (t != null) view.openTitle(t);
+                else if (t != null) {
+                    view.openTitle(t);
+                    preview.quiet(t.id);        // a page that opened by itself: no sound or subtitles over it
+                }
                 else if (query != null) view.openSearch(query);
             });
         } else if (query != null && !query.trim().isEmpty()) {

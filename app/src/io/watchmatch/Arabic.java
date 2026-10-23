@@ -387,11 +387,10 @@ final class Arabic {
             case "Short (under 100 min)": return "قصير (أقل من 100 دقيقة)";
             case "I have time": return "عندي وقت";
             case "Any length": return "مو مهم";
-            case "Matches your mood: ": return "يناسب مزاجك: ";
             case "You like ": return "تحب ";
             case "Fits your time: ": return "يناسب وقتك: ";
             case "Highly rated: ": return "تقييمه عالي: ";
-            case "Popular right now": return "مطلوب هالأيام";
+            case "Popular": return "مطلوب هالأيام";
             case " min": return " د";
             case "Documentary": return "وثائقي";
             case "History": return "تاريخي";

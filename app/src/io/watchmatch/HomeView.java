@@ -140,12 +140,14 @@ final class HomeView extends View implements Choreographer.FrameCallback, HomeDa
 
     private List<Tab> tabs = new ArrayList<>();
     private int tab;                    // the tab shown
-    private int topIndex;               // the focus on the bar: the Inputs and TV Settings buttons, then the tabs
+    private int topIndex;               // the focus on the bar: the Search, Ask Spark, Inputs and TV Settings buttons, then the tabs
     private final HomeApps.Item[] barButtons = {
         HomeApps.action(SEARCH, "search", Ui.tr("Buscar", "Search", "Buscar"), "search"),
+        HomeApps.action(SPARK, "spark", Ui.tr("Pergunte ao {spark}", "Ask {spark}", "Pregunta a {spark}"), "sparkle"),
         HomeApps.action(HomeApps.INPUTS, "inputs", Ui.tr("Entradas", "Inputs", "Entradas"), "hdmi"),
         HomeApps.action(HomeApps.ANDROID_SETTINGS, "tv-settings", Ui.tr("Ajustes da TV", "TV Settings", "Ajustes de la TV"), "tv_settings"),
     };
+    private final android.graphics.Path sparkle = new android.graphics.Path();   // the Ask Spark button's stars
     private boolean inputsOpen;         // the inputs' row is open under the apps
     private float[] tabX = new float[0], tabW = new float[0];
     private Paint tabFont;
@@ -768,7 +770,13 @@ final class HomeView extends View implements Choreographer.FrameCallback, HomeDa
                 float r = ph / 2 * (1 + 0.1f * f), cx = tabX[i] + ph / 2;
                 fill.setColor(blend(0x33FFFFFF, 0xFFFFFFFF, f));
                 c.drawCircle(cx, cy, r, fill);
-                Symbols.draw(getContext(), c, b.symbol, cx, cy, 28 * k, blend(0xFFFFFFFF, 0xFF0B0B0D, f));
+                if (b.kind == SPARK) {
+                    // the sparkle Watchme+'s top bar has: red until focused (then dark on the white circle)
+                    fill.setColor(blend(0xFFE50914, 0xFF0B0B0D, f));
+                    Sparkle.draw(c, fill, sparkle, cx - 3 * k, cy + 3 * k, k);
+                } else {
+                    Symbols.draw(getContext(), c, b.symbol, cx, cy, 28 * k, blend(0xFFFFFFFF, 0xFF0B0B0D, f));
+                }
                 if (f > 0.01f) {
                     cardFocusFont.setAlpha(Math.round(255 * f));
                     float lw = cardFocusFont.measureText(b.label);
@@ -1609,7 +1617,7 @@ final class HomeView extends View implements Choreographer.FrameCallback, HomeDa
     }
 
     /** Not HomeApps' kinds: the YouTube sign-in and the phone remote's buttons (Apps > Settings). */
-    private static final int YOUTUBE_ACCOUNT = 100, PHONE = 101, SEARCH = 102;
+    private static final int YOUTUBE_ACCOUNT = 100, PHONE = 101, SEARCH = 102, SPARK = 103;
 
     /** The settings, plus signing in to (or out of) YouTube when the app is set up for it. */
     private List<HomeApps.Item> withAccount(List<HomeApps.Item> settings) {
@@ -2075,6 +2083,9 @@ final class HomeView extends View implements Choreographer.FrameCallback, HomeDa
             } else if (barButtons[topIndex].kind == SEARCH) {
                 click.open();
                 activity.startActivity(new Intent(activity, SearchActivity.class));
+            } else if (barButtons[topIndex].kind == SPARK) {
+                click.open();
+                activity.startActivity(TonightData.launch(activity));
             } else if (barButtons[topIndex].kind == HomeApps.INPUTS) {
                 click.open();
                 openInputs();

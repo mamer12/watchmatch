@@ -389,6 +389,11 @@ public final class TonightCheck {
         return new TonightProtocol.Filters(type, genres, exclude, Collections.<String>emptyList(), maxMinutes, 0, 0, "");
     }
 
+    private static int idx(List<TonightResolver.Item> l, String id) {
+        for (int i = 0; i < l.size(); i++) if (l.get(i).id.equals(id)) return i;
+        return -1;
+    }
+
     private static void resolver() {
         TonightProtocol.Filters f = filters("any", Arrays.asList("comedy", "sci-fi", "western"), Collections.<String>emptyList(), 0);
         List<TonightResolver.Query> q = TonightResolver.queries(f, 2026);
@@ -416,7 +421,7 @@ public final class TonightCheck {
         List<TonightResolver.Item> good = TonightResolver.filter(items, strict, exclude);
         List<String> ids = new ArrayList<>();
         for (TonightResolver.Item i : good) ids.add(i.id);
-        expect("filter: seen, banned genre, too long, too old, poorly rated and wrong kind are out", ids.equals(Arrays.asList("a", "b")));
+        expect("filter: seen, banned genre, too long, too old, poorly rated, wrong kind and none of the wanted genres are out", ids.equals(Arrays.asList("a")));
         expect("a series' length is not an episode's limit", TonightResolver.filter(Collections.singletonList(item("s", 2020, 7, 300, true, "drama")),
                 filters("tv", Collections.<String>emptyList(), Collections.<String>emptyList(), 100), exclude).size() == 1);
         Map<String, Double> liked = new LinkedHashMap<>();
@@ -431,23 +436,45 @@ public final class TonightCheck {
 
         TonightResolver.Deps deps = new TonightResolver.Deps(new Catalog(items.toArray(new TonightResolver.Item[0])), liked, exclude, 2026, EN, false);
         List<TonightResolver.Pick> picks = TonightResolver.resolve(strict, deps);
-        expect("resolve: only what the catalog has, with a reason each", picks.size() == 2 && picks.get(0).item.id.equals("a")
-                && picks.get(0).reason.equals("Matches your mood: Comedy"));
+        expect("resolve: only what the catalog has, with a reason each", picks.size() == 1 && picks.get(0).item.id.equals("a")
+                && picks.get(0).reason.equals("Comedy · ★ 7.0"));
         expect("reason: liked genre", TonightResolver.reason(item("b", 2020, 7, 95, false, "drama"), strict, liked, EN, false).equals("You like Drama"));
         expect("reason: time", TonightResolver.reason(item("t", 2020, 6, 95, false, "western"), strict, Collections.<String, Double>emptyMap(), EN, false).equals("Fits your time: 95 min"));
         expect("reason: rated", TonightResolver.reason(item("t", 2020, 8.0, 95, false, "western"), filters("movie", Collections.<String>emptyList(),
                 Collections.<String>emptyList(), 0), Collections.<String, Double>emptyMap(), EN, false).equals("Highly rated: 8.0"));
+        expect("reason: genre and high stars, short", TonightResolver.reason(item("t", 2020, 7.4, 95, false, "comedy", "drama", "romance"), filters("any", Arrays.asList("comedy", "drama"),
+                Collections.<String>emptyList(), 0), liked, EN, false).equals("Comedy · Drama · ★ 7.4"));
         expect("reason: popular", TonightResolver.reason(item("t", 2020, 6, 95, false, "western"), filters("any", Collections.<String>emptyList(), Collections.<String>emptyList(), 0),
-                Collections.<String, Double>emptyMap(), EN, false).equals("Popular right now"));
+                Collections.<String, Double>emptyMap(), EN, false).equals("Popular"));
         expect("reason: two genres, Arabic joiner", TonightResolver.reason(item("t", 2020, 6, 95, false, "comedy", "drama"), filters("any", Arrays.asList("comedy", "drama"),
-                Collections.<String>emptyList(), 0), liked, EN, true).equals("Matches your mood: Comedy و" + "Drama"));
+                Collections.<String>emptyList(), 0), liked, EN, true).equals("Comedy · Drama"));
+
+        // Quality: wanted genres count, the rating counts, a cartoon nobody asked for waits, a repeat shows once.
+        TonightProtocol.Filters mood = filters("movie", Arrays.asList("comedy", "romance"), Collections.<String>emptyList(), 0);
+        Map<String, Double> none = Collections.<String, Double>emptyMap();
+        List<TonightResolver.Item> good2 = TonightResolver.rank(Arrays.asList(
+                item("one", 2022, 7.0, 95, false, "comedy"),
+                item("both", 2022, 7.0, 95, false, "comedy", "romance"),
+                item("anime", 2022, 8.5, 95, false, "comedy", "animation"),
+                item("low", 2022, 5.6, 95, false, "comedy", "romance")), mood, none, 2026);
+        expect("all the wanted genres rank above one", good2.get(0).id.equals("both"));
+        expect("an unasked cartoon ranks below a plain comedy of lower stars", good2.indexOf(good2.get(0)) == 0
+                && idx(good2, "anime") > idx(good2, "one"));
+        expect("a better rating wins with the same genres", idx(good2, "both") < idx(good2, "low"));
+        List<TonightResolver.Item> dup = Arrays.asList(
+                new TonightResolver.Item("x1", "The Film", "", "", 2020, 7, 95, false, Arrays.asList("comedy")),
+                new TonightResolver.Item("x2", "the  film!", "", "", 2020, 7, 95, false, Arrays.asList("comedy")),
+                new TonightResolver.Item("x3", "The Film", "", "", 1999, 7, 95, false, Arrays.asList("comedy")));
+        expect("the same title and year shows once", TonightResolver.filter(dup, mood, Collections.<String>emptySet()).size() == 2);
+        expect("an unrated title is not preferred to a well rated one", TonightResolver.score(item("u", 2022, 0, 95, false, "comedy"), mood, none, 2026)
+                < TonightResolver.score(item("r", 2022, 7.5, 95, false, "comedy"), mood, none, 2026));
 
         // Nothing matches: the limits go first, then the exclusions, then the genres.
         TonightProtocol.Filters tight = new TonightProtocol.Filters("movie", Arrays.asList("western"), Arrays.asList("drama"),
                 Collections.<String>emptyList(), 30, 0, 0, "");
         Catalog c2 = new Catalog(item("a", 2020, 7, 95, false, "comedy"), item("b", 2020, 7, 95, false, "drama"));
         List<TonightResolver.Pick> relaxed = TonightResolver.resolve(tight, new TonightResolver.Deps(c2, liked, exclude, 2026, EN, false));
-        expect("relaxing finds titles in the end (the limit goes first, the excluded genre stays out)", relaxed.size() == 1 && relaxed.get(0).item.id.equals("a"));
+        expect("relaxing finds titles in the end (limits, then exclusions, then genres)", relaxed.size() == 2 && relaxed.get(0).item.id.equals("b"));
         expect("relax order", TonightResolver.relax(tight).maxMinutes == 0 && TonightResolver.relax(tight).excludeGenres.equals(Collections.singletonList("drama"))
                 && TonightResolver.relax(TonightResolver.relax(tight)).excludeGenres.isEmpty() && TonightResolver.relax(TonightResolver.relax(TonightResolver.relax(tight))).genres.isEmpty()
                 && TonightResolver.relax(TonightResolver.relax(TonightResolver.relax(TonightResolver.relax(tight)))) == null);

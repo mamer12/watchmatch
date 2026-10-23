@@ -47,6 +47,26 @@ public final class NextUpRulesCheck {
         eq("seconds left at start", 5, NextUpRules.secondsLeft(0));
         eq("seconds left mid", 3, NextUpRules.secondsLeft(2_000));
         eq("seconds left at the end", 1, NextUpRules.secondsLeft(4_999));
+        // movies: "Up next: <film>" with the same credits rule
+        eq("film card = same rule (2 h)", NextUpRules.cardAt(film, -1), 7_058_000L);
+        eq("film: no pick, no card", false, NextUpRules.showingMovie(false, film, film, -1));
+        eq("film: pick, before the credits", false, NextUpRules.showingMovie(true, film, 100 * min, -1));
+        eq("film: pick, in the credits", true, NextUpRules.showingMovie(true, film, 7_058_000L, -1));
+        eq("film: credits from the database", true, NextUpRules.showingMovie(true, film, 6_000_000L + 8_000, 6_000_000L));
+        eq("film: database credits too early, 60% floor", false, NextUpRules.showingMovie(true, film, 60 * min, 1_000_000L));
+        eq("film: resolves at half", 60 * min, NextUpRules.resolveAt(film));
+        eq("film: not resolved before half", false, NextUpRules.shouldResolve(true, false, film, 59 * min));
+        eq("film: resolved at half", true, NextUpRules.shouldResolve(true, false, film, 60 * min));
+        eq("film: asked only once", false, NextUpRules.shouldResolve(true, true, film, 90 * min));
+        eq("episode never resolves a film", false, NextUpRules.shouldResolve(false, false, film, 90 * min));
+        eq("clip never resolves a film", false, NextUpRules.shouldResolve(true, false, 20 * min, 15 * min));
+        eq("film: no advance while it plays", false, NextUpRules.advance(true, false, true, false, 600_000));
+        eq("film: ended, 5 s, advances", true, NextUpRules.advance(true, true, true, false, 5_000));
+        eq("film: nothing found, nothing at the end", false, NextUpRules.advance(false, true, true, false, 9_000));
+        eq("film: dismissed, no countdown", false, NextUpRules.movieCounts(true, true, false));
+        eq("film: autoplay off, no countdown", false, NextUpRules.movieCounts(false, false, false));
+        eq("film from a preview: button only", false, NextUpRules.movieCounts(true, false, true));
+        eq("film: autoplay on", true, NextUpRules.movieCounts(true, false, false));
         if (failures > 0) {
             System.out.println(failures + " FAILED");
             System.exit(1);

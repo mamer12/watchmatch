@@ -49,6 +49,9 @@ final class SeamlessSwap {
     private boolean surfaceReady, secondPlaying;
     private int token;
     private long durationMs;
+    /** Timing log of one swap (AppLog): when each phase began, and whether the picture on screen kept moving. */
+    private long beganAt, lastLogAt, lastMain, lastWall;
+    private SwapRules.State lastState;
 
     private final Runnable tick = new Runnable() {
         @Override public void run() {
@@ -87,6 +90,9 @@ final class SeamlessSwap {
             return false;
         }
         dispose();
+        beganAt = now;
+        lastState = null;
+        lastWall = 0;
         final int mine = ++token;
         target = to;
         rules.begin(now, at);
@@ -212,6 +218,23 @@ final class SeamlessSwap {
             giveUp();
             return;
         }
+        // Measurement: each phase's start, and a note when the picture on screen advanced less than the clock did.
+        SwapRules.State st = rules.state();
+        if (st != lastState) {
+            lastState = st;
+            AppLog.w("swap +" + (now - beganAt) + " ms: " + st);
+        }
+        if (lastWall != 0 && now - lastWall >= 400) {
+            long moved = at - lastMain, wall = now - lastWall;
+            if (moved < wall * 0.6f && host.activePlayer() != null && host.activePlayer().isPlaying()) {
+                AppLog.w("swap +" + (now - beganAt) + " ms: the picture advanced " + moved + " ms in " + wall + " ms (" + st + ", drift " + (there - at) + ")");
+            }
+            lastWall = now;
+            lastMain = at;
+        } else if (lastWall == 0) {
+            lastWall = now;
+            lastMain = at;
+        }
         SwapRules.Action a = rules.next(now, at, there, secondPlaying);
         try {
             switch (a) {
@@ -270,7 +293,7 @@ final class SeamlessSwap {
         handler.removeCallbacks(tick);
         host.adopt(p, v, s, src);
         rules.succeeded();
-        AppLog.w("swap done: " + src.label);
+        AppLog.w("swap done: " + src.label + " after " + (SystemClock.uptimeMillis() - beganAt) + " ms");
     }
 
     private void dispose() {
