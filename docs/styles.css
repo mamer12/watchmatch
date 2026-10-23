@@ -202,3 +202,11 @@ details p { color: var(--muted); padding-bottom: 20px; margin: 0; }
   .flip2 { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 980px) { .flip2 { grid-template-columns: minmax(0, 1fr); } }
+
+/* GitHub mark: in the header and on the landing button */
+.gh-link { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 999px; color: var(--muted); }
+.gh-link:hover, .gh-link:focus-visible { color: var(--text, #fff); background: var(--line); }
+.btn-gh { display: inline-flex; align-items: center; gap: 8px; }
+.btn-gh .gh { flex: none; }
+.btn-icon { padding-left: 14px; padding-right: 14px; }
+.btn-icon .gh { width: 22px; height: 22px; }

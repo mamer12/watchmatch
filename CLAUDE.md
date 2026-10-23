@@ -2,8 +2,8 @@
 
 WatchMatch is a home screen and screensaver for Google TV and Android TV that replaces the stock ones, plus a
 settings screen that switches between WatchMatch and the TV's original home. It is a plain Android app in Java,
-built without Gradle by `build.sh`. The website is in `docs/` (static HTML, CSS and one small `app.js`, in English,
-Portuguese and Arabic: change all three pages together).
+built without Gradle by `build.sh`. The website is in `docs/` (static HTML, CSS and one small `app.js`, in English
+and Arabic: change both pages together).
 
 The person you're helping may not be technical. Keep it short and friendly, say what you're about to do on their TV
 before you do it, and let them do the taps on the TV.
