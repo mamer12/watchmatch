@@ -16,7 +16,7 @@ No ads. No promo apps. A search that understands Arabic sentences and an interfa
 
 [**Website**](https://mamer12.github.io/watchmatch/) · [**Download**](https://github.com/mamer12/watchmatch/releases) · [Install](#install) · [Features](#features) · [Spark](#spark-say-what-you-want-to-watch)
 
-<img src="docs/assets/media/tour.gif" width="900" alt="A tour of WatchMatch: Matches, Discover, Apps, Spark search and Settings">
+<img src="docs/assets/media/tour.gif" width="900" alt="A tour of WatchMatch: the home screen, Discover, match times and Ask Spark">
 
 </div>
 
