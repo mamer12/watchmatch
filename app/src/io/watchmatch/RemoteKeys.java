@@ -27,6 +27,7 @@ final class RemoteKeys {
         if (e.getAction() == KeyEvent.ACTION_DOWN && e.getRepeatCount() == 0) {
             Intent launch = HomeApps.launchIntent(c.getPackageManager(), pkg);
             AppLog.w("remote key " + code + " -> " + pkg + (launch == null ? " (not installed)" : ""));
+            if (launch != null) Turbo.before(c, pkg);
             if (launch != null) c.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         }
         return true;

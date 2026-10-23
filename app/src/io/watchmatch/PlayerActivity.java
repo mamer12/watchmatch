@@ -354,6 +354,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
         final Library.Source src = source;
         final boolean direct = triedDirect;
         overlay.loading(true);
+        Turbo.before(this, null);       // frees memory in the background (once a minute, only when low); playback doesn't wait
         LOADER.execute(() -> {
             String address = src.url;
             Streamer s = null;

@@ -59,7 +59,7 @@ final class HomeMode {
     static final String[] ASSISTANT = {"com.google.android.katniss", "com.android.hotwordenrollment.okgoogle"};
 
     /** System pieces that must never be turned off: checked before every disable. */
-    private static final Set<String> PROTECTED = new HashSet<>(Arrays.asList(
+    static final Set<String> PROTECTED = new HashSet<>(Arrays.asList(
         "com.tcl.ttvs", "com.tvos", "com.tcl.systemserver", "com.tcl.systemui.plugin", "com.tcl.tv",
         "com.tcl.tvinput", "com.tcl.hearaid", "com.dolby.android.audio.service", "com.tcl.globalkeyoverlay",
         "com.tcl.autopair", "com.tcl.UpdatePeripheral", "com.tcl.dashboard", "com.tcl.suspension",
@@ -284,7 +284,7 @@ final class HomeMode {
         return adb.shell(HOME_QUERY).contains(GOOGLE_SETUP + "/");
     }
 
-    private static Set<String> wifiOwners(Adb adb) throws IOException {
+    static Set<String> wifiOwners(Adb adb) throws IOException {
         Set<String> owners = new HashSet<>();
         Matcher m = WIFI_OWNER.matcher(adb.shell("dumpsys wifi | grep -o 'cname=[^ ]*'"));
         while (m.find()) owners.add(m.group(1));

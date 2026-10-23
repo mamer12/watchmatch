@@ -41,6 +41,7 @@ final class EntryOpen {
 
     private static void start(Activity a, Intent i) {
         if (i == null || a.isFinishing()) return;
+        Turbo.before(a, i.getPackage());
         try {
             a.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         } catch (ActivityNotFoundException | SecurityException ex) {

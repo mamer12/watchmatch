@@ -591,10 +591,51 @@ final class SettingsGroups {
                 Prefs.setPerformance(next(PERFORMANCE, Prefs.performance(), d));
                 dataChanged(h);
             }).preview(P_PERF, ""));
+            p.add(new Row(() -> "Turbo").value(SettingsGroups::turboValue).about(() -> Ui.tr(
+                    "Libera memória quando você abre um app ou começa um vídeo, para rodar sem engasgar. Nunca fecha o app que você está usando.",
+                    "Frees memory when you open an app or start a video, so it runs smoothly. Never closes the app you are using.",
+                    "Libera memoria cuando abres una app o empieza un video, para que funcione con fluidez. Nunca cierra la app que usas.",
+                    "يحرّر الذاكرة عند فتح تطبيق أو بدء فيديو ليعمل بسلاسة. لا يغلق التطبيق الذي تستخدمه أبدًا."))
+                    .change(d -> {
+                        Prefs.setTurbo(Prefs.turbo().equals("off") ? "auto" : "off");
+                        h.changed();
+                    }).preview(P_PERF, ""));
+            p.add(new Row(() -> Ui.tr("Rodar o Turbo agora", "Run Turbo now", "Ejecutar Turbo ahora", "شغّل Turbo الآن"))
+                    .value(() -> turboResult).about(() -> Ui.tr(
+                    "Fecha apps em segundo plano agora e mostra quanto de memória foi liberada.",
+                    "Drops background apps now and shows how much memory it freed.",
+                    "Cierra apps en segundo plano ahora y muestra cuánta memoria liberó.",
+                    "يغلق التطبيقات في الخلفية الآن ويعرض كمية الذاكرة المحرَّرة."))
+                    .ok(() -> runTurbo(h)).preview(P_PERF, ""));
             p.add(measure(h, () -> Ui.tr("Botão Início", "Home button"), "homeMs"));
             p.add(measure(h, () -> Ui.tr("Memória livre", "Free memory"), "memAvailableMB"));
             p.add(measure(h, () -> Ui.tr("Memória do Início", "Home screen memory"), "homePssMB"));
         });
+    }
+
+    private static volatile String turboResult = "";
+
+    private static String turboValue() {
+        return Prefs.turbo().equals("off") ? Ui.tr("Desligado", "Off", "Apagado", "متوقف") : Ui.tr("Automático", "Auto", "Automático", "تلقائي");
+    }
+
+    /** Runs Turbo once, off the UI thread, and says "freed N MB (X MB free now)" in a toast and on the row. */
+    private static void runTurbo(Host h) {
+        final Context c = h.context();
+        turboResult = Ui.tr("Liberando...", "Working...", "Liberando...", "جارٍ التحرير...");
+        h.changed();
+        Turbo.now(c, (freed, available, error) -> h.later(() -> {
+            String text = error != null
+                    ? Ui.tr("Turbo: não deu para liberar (" + error + ")", "Turbo: couldn't free memory (" + error + ")",
+                            "Turbo: no se pudo liberar (" + error + ")", "Turbo: تعذّر التحرير (" + error + ")")
+                    : Ui.tr("Turbo: liberou " + Ui.digits(String.valueOf(freed)) + " MB (" + Ui.digits(String.valueOf(available)) + " MB livres agora)",
+                            "Turbo: freed " + Ui.digits(String.valueOf(freed)) + " MB (" + Ui.digits(String.valueOf(available)) + " MB free now)",
+                            "Turbo: liberó " + Ui.digits(String.valueOf(freed)) + " MB (" + Ui.digits(String.valueOf(available)) + " MB libres ahora)",
+                            "Turbo: تم تحرير " + Ui.digits(String.valueOf(freed)) + " MB (" + Ui.digits(String.valueOf(available)) + " MB متاحة الآن)");
+            turboResult = error != null ? "" : Ui.digits(String.valueOf(available)) + " MB";
+            android.widget.Toast.makeText(c, text, android.widget.Toast.LENGTH_LONG).show();
+            h.changed();
+        }));
     }
 
     /** A comparison row: {app}'s number as the value, the original's in the description. */

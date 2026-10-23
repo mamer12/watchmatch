@@ -2182,6 +2182,7 @@ final class HomeView extends View implements Choreographer.FrameCallback, HomeDa
         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(e.link)).setPackage(e.pkg).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         if (intent.resolveActivity(activity.getPackageManager()) == null) return open(HomeApps.app(e.pkg, e.sub), from);
         click.open();
+        Turbo.before(activity, e.pkg);
         try {
             activity.startActivity(intent, ActivityOptions.makeScaleUpAnimation(this, Math.round(from.left),
                     Math.round(from.top), Math.max(1, Math.round(from.width())), Math.max(1, Math.round(from.height()))).toBundle());
@@ -2197,6 +2198,7 @@ final class HomeView extends View implements Choreographer.FrameCallback, HomeDa
         click.open();
         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=" + e.video))
                 .setPackage(e.pkg).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Turbo.before(activity, e.pkg);
         try {
             activity.startActivity(intent, ActivityOptions.makeScaleUpAnimation(this, Math.round(from.left),
                     Math.round(from.top), Math.max(1, Math.round(from.width())), Math.max(1, Math.round(from.height()))).toBundle());

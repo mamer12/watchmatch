@@ -100,6 +100,15 @@ final class Prefs {
         Ui.applyLite(app);
     }
 
+    /** "auto" frees memory before an app or video opens (Turbo); "off" never does. The person's choice wins over Config.TURBO. */
+    static String turbo() {
+        return PrefsRules.oneOf(str("turbo", Config.TURBO), "auto", "auto", "off");
+    }
+
+    static void setTurbo(String v) {
+        putString("turbo", PrefsRules.oneOf(v, "auto", "auto", "off"));
+    }
+
     static String clock() {
         return PrefsRules.oneOf(str("clock", "auto"), "auto", "auto", "12", "24");
     }

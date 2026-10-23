@@ -69,6 +69,7 @@ LEAGUES=$(prop leagues 'uefa.champions,eng.1,esp.1')
 LANGUAGE=$(prop language auto)
 CURRENCY=$(prop currency USD)
 TEMPERATURE=$(prop temperature auto)
+[ "$(prop turbo auto)" = off ] && TURBO=off || TURBO=auto
 [ "$(prop disable_assistant false)" = true ] && DISABLE_ASSISTANT=true || DISABLE_ASSISTANT=false
 [ "$(prop show_crypto true)" = true ] && SHOW_CRYPTO=true || SHOW_CRYPTO=false
 
@@ -89,7 +90,7 @@ mkdir -p out/gen/io/watchmatch out/classes
             "YOUTUBE_CLIENT_ID=$YOUTUBE_CLIENT_ID" "YOUTUBE_CLIENT_SECRET=$YOUTUBE_CLIENT_SECRET" \
             "SUPABASE_URL=$SUPABASE_URL" "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" "SITE_URL=$SITE_URL" \
             "LATITUDE=$LATITUDE" "LONGITUDE=$LONGITUDE" "CITY=$CITY" "NAME=$NAME" "TEAMS=$TEAMS" \
-            "LEAGUES=$LEAGUES" "LANGUAGE=$LANGUAGE" "CURRENCY=$CURRENCY" "TEMPERATURE=$TEMPERATURE"; do
+            "TURBO=$TURBO" "LEAGUES=$LEAGUES" "LANGUAGE=$LANGUAGE" "CURRENCY=$CURRENCY" "TEMPERATURE=$TEMPERATURE"; do
     printf '    static final String %s = "%s";\n' "${kv%%=*}" "${kv#*=}"
   done
   echo "    static final boolean DISABLE_ASSISTANT = $DISABLE_ASSISTANT;"

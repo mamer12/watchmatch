@@ -53,6 +53,7 @@ press away if you ever miss it.
 | Settings with live preview | Every setting says what it does and a preview panel shows the effect as you move. |
 | **Performance** | |
 | Light on the hardware | 1.5 MB APK, one Canvas, Lite mode picked automatically on weak TVs. See [Performance](#performance). |
+| Turbo | Frees memory right before an app or a video opens, so it runs smoothly. Drops only background apps, never the one you are using. On by default; turn it off in *Settings → Performance*. |
 | **Reliability** | |
 | Power-cut proof | Trusted time, retries with backoff, saved rows and durable writes. |
 | Watchdog | Goes back to the stock home screen after 3 crashes in 5 minutes. |
@@ -81,6 +82,14 @@ How it stays light:
 - **Lite mode** is chosen automatically on weak TVs: simpler effects, same layout. You can force Full or Lite in
   *Settings → Performance*, where the app also shows its own measurements against the original.
 - No libraries and no Gradle: only the Android SDK.
+
+**Turbo** frees memory just before an app (from the home screen, the shelf, search, the remote's app buttons) or a video in
+the Watchme+ player opens. When the TV is low on memory it asks Android to drop the cached background apps with
+`am kill`, over the TV's own debugging connection. It runs in the background, never delays the app opening, and at most
+once a minute. It only drops background processes: never the app you are using, never the TV's own system pieces or an
+app that owns a saved Wi-Fi network, and nothing is force-stopped, turned off, cleared or uninstalled. *Settings →
+Performance → Turbo* turns it **Off** (or set `turbo=off` in `config.properties` for the first value), and *Run Turbo
+now* runs it once and shows how much it freed. The log line is `turbo: freed N MB ...` in `adb logcat -s WatchMatch`.
 
 <img src="docs/assets/media/settings-performance.webp" width="520" alt="Settings, Performance: WatchMatch measured against the original home screen">
 

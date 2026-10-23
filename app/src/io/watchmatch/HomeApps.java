@@ -434,6 +434,7 @@ final class HomeApps {
         }
         if (intent == null) return false;
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        if (it.kind == APP) Turbo.before(a, it.pkg);      // in the background: the launch doesn't wait
         try {
             ActivityOptions o = ActivityOptions.makeScaleUpAnimation(from, x, y, Math.max(w, 1), Math.max(h, 1));
             a.startActivity(intent, o.toBundle());
