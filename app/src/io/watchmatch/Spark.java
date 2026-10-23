@@ -127,6 +127,15 @@ final class Spark {
     // MARK: - Running a query
 
     static Result run(Context c, SparkQuery q) {
+        return run(c, q, null);
+    }
+
+    /**
+     * Ask Spark's results by app: `catalog` is the first row, already found (its own filters are stricter than this
+     * query's); with it, only the rows of the apps that stream the matches follow (no TMDB rest, YouTube or other apps).
+     */
+    static Result run(Context c, SparkQuery q, List<Catalog.Entry> catalogRow) {
+        boolean own = catalogRow != null;
         PackageManager pm = c.getPackageManager();
         List<Hit> hits = new ArrayList<>();
         if (Recs.hasKey(c)) {
@@ -149,7 +158,7 @@ final class Spark {
             }
             if (arabic(q.title) && names.size() > 1) title = names.get(1);
         }
-        List<Catalog.Entry> catalog = catalog(q, names);
+        List<Catalog.Entry> catalog = own ? catalogRow : catalog(q, names);
         providers(pm, hits);
 
         List<Row> rows = new ArrayList<>();
@@ -177,7 +186,7 @@ final class Spark {
                 list.add(e);
             }
             boolean listed = inCatalog.contains(SearchRank.normalize(h.title)) || inCatalog.contains(SearchRank.normalize(h.original));
-            if (h.apps.isEmpty() && !listed) {
+            if (h.apps.isEmpty() && !listed && !own) {
                 // Its year first, as on every card, then where it streams (apps not on this TV).
                 List<String> sub = new ArrayList<>();
                 if (!h.year.isEmpty()) sub.add(h.year);
@@ -188,7 +197,7 @@ final class Spark {
         for (Map.Entry<String, List<Catalog.Entry>> e : byApp.entrySet()) {
             rows.add(new Row(onApp(appNames.get(e.getKey())), POSTERS, e.getValue()));
         }
-        if (q.hasTitle()) {
+        if (q.hasTitle() && !own) {
             try {
                 List<Catalog.Entry> videos = YouTubeAccount.search(c, title);
                 if (!videos.isEmpty()) rows.add(new Row("YouTube", WIDE, videos));
@@ -200,7 +209,7 @@ final class Spark {
 
         Map<String, Drawable> art = new HashMap<>();
         Set<String> icons = new HashSet<>();
-        List<Catalog.Entry> apps = otherApps(c, q.hasTitle() ? title : q.text, byApp.keySet(), art, icons);
+        List<Catalog.Entry> apps = own ? new ArrayList<Catalog.Entry>() : otherApps(c, q.hasTitle() ? title : q.text, byApp.keySet(), art, icons);
         if (!apps.isEmpty()) rows.add(new Row(Ui.tr("Buscar em outros apps", "Search in other apps"), APPS, apps));
         return new Result(title, rows, art, icons);
     }
@@ -429,6 +438,7 @@ final class Spark {
                 default: p.append("&with_original_language=").append(q.origin); break;
             }
         }
+        if (q.maxMinutes > 0 && movie) p.append("&with_runtime.lte=").append(q.maxMinutes);
         if (q.family) {
             if (movie) p.append("&certification_country=US&certification.lte=PG-13&without_genres=27");
             else p.append("&without_genres=").append(enc("10768"));

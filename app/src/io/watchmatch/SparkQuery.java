@@ -47,9 +47,17 @@ final class SparkQuery {
     final String title;
     /** A type word was said ("movies", "مسلسل"): then it's surely Spark, never a title that happens to have a genre in it. */
     final boolean typed;
+    /** Films no longer than this (Ask Spark only; 0 when none): TMDB's runtime. */
+    final int maxMinutes;
 
     private SparkQuery(String text, String kind, List<String> genres, String era, int from, int to, String origin,
                        boolean family, String sort, String title, boolean typed) {
+        this(text, kind, genres, era, from, to, origin, family, sort, title, typed, 0);
+    }
+
+    private SparkQuery(String text, String kind, List<String> genres, String era, int from, int to, String origin,
+                       boolean family, String sort, String title, boolean typed, int maxMinutes) {
+        this.maxMinutes = maxMinutes;
         this.text = text;
         this.kind = kind;
         this.genres = Collections.unmodifiableList(new ArrayList<>(genres));
@@ -100,7 +108,20 @@ final class SparkQuery {
         boolean noEra = part.equals("era");
         return new SparkQuery(text, part.equals("kind") ? null : kind, g, noEra ? null : era, noEra ? 0 : from,
                 noEra ? 0 : to, part.equals("origin") ? null : origin, !part.equals("family") && fam,
-                part.equals("sort") ? null : sort, part.equals("title") ? "" : title, typed && !part.equals("kind"));
+                part.equals("sort") ? null : sort, part.equals("title") ? "" : title, typed && !part.equals("kind"), maxMinutes);
+    }
+
+    /**
+     * The filters Ask Spark ended in, as a query (for Spark's rows of apps). `type`: "movie", "tv" or anything else for both;
+     * `genres` are Ask Spark's names ("sci-fi"); `lang`: the language ("ar", "tr"…) as an origin of its own, TMDB's
+     * original language; `from`, `to`: the years (0 open).
+     */
+    static SparkQuery of(String type, List<String> genres, int from, int to, String lang, int maxMinutes) {
+        List<String> keys = new ArrayList<>();
+        for (String g : genres) keys.add("sci-fi".equals(g) ? "scifi" : g);
+        String era = from > 0 && to > 0 ? RANGE : from > 0 ? AFTER : to > 0 ? BEFORE : null;
+        String kind = MOVIE.equals(type) ? MOVIE : TV.equals(type) ? TV : null;
+        return new SparkQuery("", kind, keys, era, from, to, lang.isEmpty() ? null : lang, false, null, "", false, maxMinutes);
     }
 
     @Override public String toString() {
@@ -135,8 +156,17 @@ final class SparkQuery {
         List<String> genres = new ArrayList<>();
         List<int[]> years = new ArrayList<>();      // {year, -1 before / 0 / 1 after}
 
+        int lastYears = 0;
         for (int i = 0; i < n; i++) {
             if (used[i]) continue;
+            // "last 5 years", "آخر 5 سنوات": the new era, that many years back.
+            if (LAST_WORDS.contains(norms.get(i)) && i + 2 < n && !used[i + 1] && !used[i + 2] && YEAR_UNITS.contains(norms.get(i + 2))
+                    && norms.get(i + 1).matches("[0-9]{1,2}") && Integer.parseInt(norms.get(i + 1)) > 0) {
+                lastYears = Integer.parseInt(norms.get(i + 1));
+                used[i] = used[i + 1] = used[i + 2] = true;
+                i += 2;
+                continue;
+            }
             int year = year(norms.get(i));
             if (year > 0) {
                 used[i] = true;
@@ -198,6 +228,9 @@ final class SparkQuery {
             era = DECADE;
             from = decade;
             to = decade + 9;
+        } else if (lastYears > 0) {
+            era = NEW;
+            from = thisYear - lastYears;
         } else if (NEW.equals(eraWord)) {
             era = NEW;
             from = thisYear - NEW_YEARS;
@@ -348,6 +381,8 @@ final class SparkQuery {
             "اعرضلي", "عرض", "ابحث", "دور", "دورلي", "جيب", "جيبلي", "انطيني", "نطيني", "اعطني", "عن", "على", "لي", "الي",
             "من", "في", "و", "بس", "شي", "شيء", "اكو", "عندك", "نوع", "مال", "مالت", "حلو", "حلوه", "يا", "لو", "سمحت",
             "رجاء", "ممكن", "فيه", "بعض", "اي", "مترجم", "مترجمه", "مدبلج", "مدبلجه", "اسمه", "اسمها", "عنوان");
+    private static final Set<String> LAST_WORDS = normalized("last", "past", "اخر", "اخر");
+    private static final Set<String> YEAR_UNITS = normalized("years", "year", "سنوات", "سنين", "سنه", "سنة", "اعوام", "عام");
     private static final Set<String> AFTER_WORDS = normalized("after", "since", "from", "بعد", "منذ", "من");
     private static final Set<String> BEFORE_WORDS = normalized("before", "until", "قبل");
     private static final Set<String> JOIN_WORDS = normalized("and", "to", "until", "till", "through", "الى", "حتى", "لغايه", "و");

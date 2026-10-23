@@ -70,6 +70,31 @@ final class TonightProtocol {
                     maxMinutes, minYear, maxYear, lang);
         }
 
+        /** The parts a chip shows, in order: "kind", "genre:comedy"…, "origin" (the language), "era", "minutes". */
+        List<String> parts() {
+            List<String> out = new ArrayList<>();
+            if (!ANY.equals(type)) out.add("kind");
+            for (String g : genres) out.add("genre:" + g);
+            if (!lang.isEmpty()) out.add("origin");
+            if (minYear > 0 || maxYear > 0) out.add("era");
+            if (maxMinutes > 0) out.add("minutes");
+            return out;
+        }
+
+        /** The same filters without one of its parts() (a chip taken off). */
+        Filters without(String part) {
+            List<String> g = new ArrayList<>(genres);
+            if (part.startsWith("genre:")) g.remove(part.substring(6));
+            boolean era = part.equals("era");
+            return new Filters(part.equals("kind") ? ANY : type, g, excludeGenres, keywords, part.equals("minutes") ? 0 : maxMinutes,
+                    era ? 0 : minYear, era ? 0 : maxYear, part.equals("origin") ? "" : lang);
+        }
+
+        /** As a Spark query, for the rows of apps. */
+        SparkQuery query() {
+            return SparkQuery.of(type, genres, minYear, maxYear, lang, maxMinutes);
+        }
+
         boolean hasLimits() {
             return maxMinutes > 0 || minYear > 0 || maxYear > 0 || !lang.isEmpty();
         }

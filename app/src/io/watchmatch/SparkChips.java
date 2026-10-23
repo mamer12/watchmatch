@@ -53,7 +53,14 @@ final class SparkChips {
             case SparkQuery.FOREIGN: return Ui.tr("Estrangeiras", "Foreign", "Extranjeras", "أجنبية");
             case SparkQuery.AMERICAN: return Ui.tr("Americanas", "American", "Estadounidenses", "أمريكية");
             case SparkQuery.EGYPTIAN: return Ui.tr("Egípcias", "Egyptian", "Egipcias", "مصرية");
-            default: return Ui.tr("Do Golfo", "Gulf", "Del Golfo", "خليجية");
+            case SparkQuery.GULF: return Ui.tr("Do Golfo", "Gulf", "Del Golfo", "خليجية");
+            case "en": return Ui.tr("Inglesas", "English", "Inglesas", "إنجليزية");
+            case "fr": return Ui.tr("Francesas", "French", "Francesas", "فرنسية");
+            case "de": return Ui.tr("Alemãs", "German", "Alemanas", "ألمانية");
+            case "es": return Ui.tr("Espanholas", "Spanish", "Españolas", "إسبانية");
+            case "zh": return Ui.tr("Chinesas", "Chinese", "Chinas", "صينية");
+            case "ru": return Ui.tr("Russas", "Russian", "Rusas", "روسية");
+            default: return o.toUpperCase(java.util.Locale.ROOT);
         }
     }
 

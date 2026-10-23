@@ -37,35 +37,39 @@ import java.util.concurrent.Executors;
  * as in search). The titles come as cards that open the title's page, as search results do. Its own screen: the normal
  * search is untouched. Chat logic is TonightChat, TonightResolver and TonightTaste (pure); this is the views.
  */
-public class TonightActivity extends Activity implements Thumbs.Listener {
-    // Search's own measures (1920 space): the side margin, the cards, their focus.
-    private static final int M = 96, POSTER_W = 264, POSTER_H = 396, GAP = 28, RADIUS = 14, RING = 4, RING_OUT = 3, ROOM = 36, FADE = 90;
+public class TonightActivity extends Activity implements Thumbs.Listener, TonightResults.Host {
+    /** Who opened it, and so how the results look: STYLE_APPS (WatchMatch: a row for each app), else STYLE_CATALOG (the titles). */
+    static final String EXTRA_STYLE = "io.watchmatch.tonight.STYLE";
+    static final String STYLE_APPS = "apps", STYLE_CATALOG = "catalog";
+
+    // Search's own measures (1920 space): the side margin and the buttons.
+    private static final int M = 96, RING = 4;
     private static final int PILL_H = 76, MIC = 88, BUBBLE_W = 1100, FIELD_W = 1100;
-    private static final float FOCUS_SCALE = 1.06f;
-    private static final int FIELD = 0xFF1C1C21, INK = 0xB3FFFFFF, SUB_INK = 0x80FFFFFF, PLACEHOLDER = 0xFF1E1F24;
+    private static final int FIELD = 0xFF1C1C21;
     private static final int MIC_PERMISSION = 2;
 
     private static final TonightText.Tr TR = Ui::tr;
 
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
-    private final List<ImageView> waiting = new ArrayList<>();
     private TonightApi api;
     private TonightData.Taste taste;
     private String summary = "{}";
     private TonightChat.State state;
     private boolean aiReady;
     private int generation, shown;
+    private boolean apps;
+    private TonightProtocol.Filters active;
+    private TonightResults results;
     private float k;
     private Thumbs thumbs;
     private Voice voice;
     private View mic;
     private GradientDrawable micBg;
     private TextView headline, status;
-    private LinearLayout chat, choices, picksRow;
+    private LinearLayout chat, choices;
     private ScrollView chatScroll;
-    private HorizontalScrollView choiceLine, picksLine;
-    private TextView picksLabel;
+    private HorizontalScrollView choiceLine;
     private EditText box;
     private LinearLayout inputBar;
 
@@ -74,6 +78,7 @@ public class TonightActivity extends Activity implements Thumbs.Listener {
         Ui.init(this);
         k = getResources().getDisplayMetrics().widthPixels / 1920f;
         thumbs = Thumbs.get(this);
+        apps = STYLE_APPS.equals(getIntent().getStringExtra(EXTRA_STYLE));
         api = TonightData.api();
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
@@ -95,24 +100,9 @@ public class TonightActivity extends Activity implements Thumbs.Listener {
         chatScroll.setFocusable(false);
         chatScroll.addView(chat);
         page.addView(chatScroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        picksLabel = text(30, 0xFFFFFFFF, Ui.semibold);
-        picksLabel.setPadding(px(M), px(8), px(M), px(12));
-        picksLabel.setVisibility(View.GONE);
-        page.addView(picksLabel);
-        picksLine = new SearchRows.Edge(this, px(M));
-        picksLine.setVisibility(View.GONE);
-        picksRow = new LinearLayout(this);
-        picksRow.setClipChildren(false);
-        picksRow.setGravity(Gravity.CENTER_VERTICAL | (Ui.rtl ? Gravity.RIGHT : Gravity.LEFT));
-        // Room above and below for the focused card to grow into: its row is as tall as the cards need, whatever it scales.
-        picksRow.setPadding(px(M), px(ROOM), px(M), px(ROOM));
-        picksLine.setFillViewport(true);
-        picksLine.setClipToPadding(false);
-        // The row runs on past the edge: the cards fade out there, which says there are more.
-        picksLine.setHorizontalFadingEdgeEnabled(true);
-        picksLine.setFadingEdgeLength(px(FADE));
-        picksLine.addView(picksRow, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        page.addView(picksLine, new LinearLayout.LayoutParams(-1, 0, 1));      // the screen's height under the heading
+        results = new TonightResults(this, k, thumbs, this, apps);
+        page.addView(results.chipLine());
+        page.addView(results.scroll(), new LinearLayout.LayoutParams(-1, 0, 1));      // the screen's height under the heading
         choiceLine = new SearchRows.Edge(this, px(M));
         choiceLine.setFillViewport(true);
         choices = new LinearLayout(this);
@@ -142,7 +132,7 @@ public class TonightActivity extends Activity implements Thumbs.Listener {
                 state = TonightChat.start(ai ? TonightChat.Mode.AI : TonightChat.Mode.FALLBACK, TR);
                 shown = 0;
                 chat.removeAllViews();
-                showPicks(null);
+                hideResults();
                 render();
             });
         });
@@ -150,10 +140,15 @@ public class TonightActivity extends Activity implements Thumbs.Listener {
 
     /** What the person answered (a button, typing or the voice). */
     private void submit(String text) {
+        submit(text, text);
+    }
+
+    /** `shown`: what the chat says the person said (a button's label, where `text` is its value). */
+    private void submit(String text, String shown) {
         if (state == null || !state.canAnswer()) return;
         final int run = ++generation;       // a typed refine while titles are loading drops that search
         if (state.mode == TonightChat.Mode.FALLBACK) {
-            state = TonightChat.answerFallback(state, text, TR);
+            state = TonightChat.answerFallback(state, text, shown, TR);
             render();
             if (state.done() && state.filters != null) find(state.filters);
             return;
@@ -180,37 +175,86 @@ public class TonightActivity extends Activity implements Thumbs.Listener {
         });
     }
 
-    /** The filters become cards. */
+    /** The filters become results: the titles (Watchme+) or a row for each app (WatchMatch). */
     private void find(final TonightProtocol.Filters filters) {
         final int run = generation;
+        active = filters;
         status.setText(TonightText.get(TR, "finding"));
         final Context c = getApplicationContext();
         io.execute(() -> {
-            List<TonightResolver.Pick> picks;
+            TonightResolver.Found found;
             try {
-                picks = TonightResolver.resolve(filters, new TonightResolver.Deps(TonightData.source(c), TonightTaste.affinity(taste.input),
+                found = TonightResolver.search(filters, new TonightResolver.Deps(TonightData.source(c), TonightTaste.affinity(taste.input),
                         taste.exclude, TonightData.now().get(java.util.Calendar.YEAR), TR, Ui.ar));
             } catch (RuntimeException e) {
                 AppLog.w("tonight resolve: " + e);
-                picks = new ArrayList<>();
+                found = new TonightResolver.Found(new ArrayList<TonightResolver.Pick>(), filters, false);
             }
-            final List<TonightResolver.Pick> found = picks;
+            final TonightResolver.Found got = found;
+            final List<Catalog.Entry> titles = TonightData.entries(got.picks);
+            List<Spark.Row> byApp = null;
+            if (apps) {
+                try {
+                    // Watchme+'s row is what was found above; the other apps' rows come from TMDB with the same filters.
+                    // The apps' rows from TMDB (an empty catalog row: none of Spark's own); Watchme+'s row is added first here.
+                    List<Spark.Row> rest = Spark.run(c, got.used.query(), new ArrayList<Catalog.Entry>()).rows;
+                    byApp = new ArrayList<>();
+                    if (!titles.isEmpty()) byApp.add(new Spark.Row(WatchMe.NAME, Spark.POSTERS, titles));
+                    byApp.addAll(rest);
+                } catch (RuntimeException e) {
+                    AppLog.w("tonight apps: " + e);
+                }
+            }
+            final List<Spark.Row> rows = byApp;
+            AppLog.w("tonight " + (apps ? "apps" : "catalog") + ": " + got.picks.size() + " picks, " + titles.size() + " cards, "
+                    + (rows == null ? 0 : rows.size()) + " rows, filters " + got.used);
             main.post(() -> {
                 if (run != generation || isFinishing()) return;
-                if (found.isEmpty()) {
-                    addBubble(false, TonightText.get(TR, "nothing"));
-                    status.setText(TonightText.get(TR, "nothing"));
-                    showChoices(state.choices, true);
-                } else {
-                    showPicks(found);
-                }
+                showResults(got, titles, rows);
             });
         });
     }
 
+    private void showResults(TonightResolver.Found found, List<Catalog.Entry> titles, List<Spark.Row> rows) {
+        int total = titles.size();
+        if (apps) {
+            total = 0;
+            if (rows == null) rows = java.util.Collections.singletonList(new Spark.Row(WatchMe.NAME, Spark.POSTERS, titles));
+            for (Spark.Row r : rows) if (r.style != Spark.APPS) total += r.items.size();
+        }
+        String line = TonightResults.headline(total, found.used, found.relaxed);
+        status.setText(line);
+        if (total == 0) {
+            hideResults();
+            addBubble(false, line);
+            showChoices(state.choices, true);
+            return;
+        }
+        results.showChips(found.used);
+        chatScroll.setVisibility(View.GONE);
+        inputBar.setVisibility(state != null && state.canAnswer() ? View.VISIBLE : View.GONE);   // the AI takes a refinement
+        View first = apps ? results.showRows(rows) : results.showGrid(titles);
+        if (first != null) first.requestFocus();
+    }
+
+    /** Back to the chat. */
+    private void hideResults() {
+        results.hide();
+        chatScroll.setVisibility(View.VISIBLE);
+    }
+
+    /** A chip taken off: the same search without it. */
+    @Override public void dropPart(String part) {
+        if (active != null) find(active.without(part));
+    }
+
+    @Override public void open(Catalog.Entry entry) {
+        EntryOpen.open(this, entry);
+    }
+
     /** New lines of the chat, then what can be answered. */
     private void render() {
-        if (state.status == TonightChat.Status.ASKING && picksLine.getVisibility() == View.VISIBLE) showPicks(null);   // the AI asks again
+        if (state.status == TonightChat.Status.ASKING && results.visible()) hideResults();   // the AI asks again
         for (; shown < state.messages.size(); shown++) {
             TonightProtocol.Msg m = state.messages.get(shown);
             addBubble(m.user, m.text);
@@ -263,13 +307,13 @@ public class TonightActivity extends Activity implements Thumbs.Listener {
         choiceLine.setVisibility(visible ? View.VISIBLE : View.GONE);
         View first = null;
         for (final TonightChat.Choice c : list) {
-            View v = pill(c.label, () -> submit(c.value));
+            View v = pill(c.label, () -> submit(c.value, c.label));
             addPill(v);
             if (first == null) first = v;
         }
         View again = pill(TonightText.get(TR, "startOver"), this::startOver);
         addPill(again);
-        if (picksLine.getVisibility() != View.VISIBLE) {
+        if (!results.visible()) {
             if (first != null) first.requestFocus();
             else if (state != null && state.canAnswer()) box.requestFocus();
             else again.requestFocus();
@@ -448,130 +492,8 @@ public class TonightActivity extends Activity implements Thumbs.Listener {
         if (imm != null) imm.hideSoftInputFromWindow(box.getWindowToken(), 0);
     }
 
-    // MARK: - The picks
-
-    /** The cards (null: back to the chat). */
-    private void showPicks(List<TonightResolver.Pick> picks) {
-        picksRow.removeAllViews();
-        waiting.clear();
-        boolean on = picks != null && !picks.isEmpty();
-        picksLine.setVisibility(on ? View.VISIBLE : View.GONE);
-        picksLabel.setVisibility(on ? View.VISIBLE : View.GONE);
-        chatScroll.setVisibility(on ? View.GONE : View.VISIBLE);
-        if (!on) return;
-        picksLabel.setText(TonightText.get(TR, "picks"));
-        picksLabel.setGravity(Ui.rtl ? Gravity.RIGHT : Gravity.LEFT);
-        status.setText(TonightText.get(TR, "leadIn"));
-        inputBar.setVisibility(state != null && state.canAnswer() ? View.VISIBLE : View.GONE);   // the AI takes a refinement
-        View first = null;
-        for (int i = 0; i < picks.size(); i++) {
-            View card = card(picks.get(i), i > 0);
-            if (Ui.rtl) picksRow.addView(card, 0);
-            else picksRow.addView(card);
-            if (first == null) first = card;
-        }
-        if (first != null) first.requestFocus();
-        if (Ui.rtl) picksLine.post(() -> picksLine.scrollTo(picksRow.getWidth(), 0));
-    }
-
-    /** A poster as in search results: its title and, under it, why it is here. OK opens the title's page. */
-    private View card(final TonightResolver.Pick pick, boolean gap) {
-        final TonightResolver.Item item = pick.item;
-        final Library.Title title = TonightData.LAST.get(item.id);
-        final int w = px(POSTER_W), h = px(POSTER_H), radius = px(RADIUS);
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-        col.setFocusable(true);
-        col.setClipChildren(false);
-        FrameLayout frame = new FrameLayout(this);
-        frame.setClipChildren(false);
-        GradientDrawable ph = new GradientDrawable();
-        ph.setColor(PLACEHOLDER);
-        ph.setCornerRadius(radius);
-        frame.setBackground(ph);
-        ImageView img = new ImageView(this);
-        img.setScaleType(ImageView.ScaleType.FIT_XY);
-        String poster = title == null ? null : title.poster;
-        if (poster != null) {
-            String key = Thumbs.key(poster, w, h, radius);
-            img.setTag(new Object[] {key, poster, w, h});
-            Bitmap b = thumbs.get(key, poster, w, h, radius);
-            if (b != null) img.setImageBitmap(b);
-            else waiting.add(img);
-        }
-        frame.addView(img, new FrameLayout.LayoutParams(w, h));
-        int out = px(RING_OUT);
-        final GradientDrawable ring = new GradientDrawable();
-        ring.setCornerRadius(radius + out);
-        ring.setStroke(px(RING), Ui.accent());
-        final View focusRing = new View(this);
-        focusRing.setBackground(ring);
-        focusRing.setVisibility(View.INVISIBLE);
-        FrameLayout.LayoutParams rp = new FrameLayout.LayoutParams(w + 2 * out, h + 2 * out);
-        rp.leftMargin = rp.topMargin = -out;
-        frame.addView(focusRing, rp);
-        col.addView(frame, new LinearLayout.LayoutParams(w, h));
-        col.setGravity(Gravity.TOP);
-        final TextView label = cardText(item.title, 25, INK, 1);
-        label.setPadding(0, px(14), 0, 0);
-        col.addView(label, new LinearLayout.LayoutParams(w, ViewGroup.LayoutParams.WRAP_CONTENT));
-        TextView why = cardText(Ui.digits(pick.reason), 22, SUB_INK, 2);
-        why.setMinLines(2);         // every card the same height: focus never moves or clips the row
-        why.setPadding(0, px(4), 0, 0);
-        col.addView(why, new LinearLayout.LayoutParams(w, ViewGroup.LayoutParams.WRAP_CONTENT));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(w, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.gravity = Gravity.CENTER_VERTICAL;
-        if (gap && Ui.rtl) lp.rightMargin = px(GAP);
-        else if (gap) lp.leftMargin = px(GAP);
-        col.setLayoutParams(lp);
-        col.setOnFocusChangeListener((v, has) -> {
-            float s = has ? FOCUS_SCALE : 1f;
-            v.animate().scaleX(s).scaleY(s).setDuration(A11y.reduceMotion ? 0 : 160).start();
-            focusRing.setVisibility(has ? View.VISIBLE : View.INVISIBLE);
-            label.setTextColor(has ? 0xFFFFFFFF : INK);
-            label.setTypeface(has ? Ui.semibold : Ui.medium);
-        });
-        col.setContentDescription(item.title + ". " + pick.reason + ". " + TonightText.get(TR, "open"));
-        col.setOnClickListener(v -> open(item));
-        col.setOnKeyListener((v, code, ev) -> {
-            if (ev.getAction() == KeyEvent.ACTION_UP && (code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER)) {
-                open(item);
-                return true;
-            }
-            return false;
-        });
-        return col;
-    }
-
-    private TextView cardText(String s, float size, int color, int lines) {
-        TextView t = text(size, color, Ui.medium);
-        t.setMaxLines(lines);
-        t.setEllipsize(TextUtils.TruncateAt.END);
-        t.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);
-        t.setGravity(hasArabic(s) ? Gravity.RIGHT : Ui.rtl ? Gravity.RIGHT : Gravity.LEFT);
-        t.setText(s);
-        return t;
-    }
-
-    /** The title's page in Watchme+ (by its number). */
-    private void open(TonightResolver.Item item) {
-        try {
-            startActivity(WatchMe.open(this, item.id, item.title));
-        } catch (ActivityNotFoundException | SecurityException e) {
-            AppLog.w("tonight open: " + e.getMessage());
-        }
-    }
-
     @Override public void onThumb() {
-        for (int i = waiting.size() - 1; i >= 0; i--) {
-            ImageView v = waiting.get(i);
-            Object[] tag = (Object[]) v.getTag();
-            Bitmap b = thumbs.get((String) tag[0], (String) tag[1], (Integer) tag[2], (Integer) tag[3], px(RADIUS));
-            if (b != null) {
-                v.setImageBitmap(b);
-                waiting.remove(i);
-            }
-        }
+        results.onThumb();
     }
 
     @Override protected void onResume() {

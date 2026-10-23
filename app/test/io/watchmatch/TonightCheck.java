@@ -17,7 +17,7 @@ import java.util.Set;
  * 1.5 KB cap, no ids, Thursday evening), the conversation (fixed questions, turn cap, history), the client against a
  * fake transport, the resolver against a fake catalog, and every line having its Arabic. From the repository's root:
  *
- *   mkdir -p out/test && javac -d out/test app/src/io/watchmatch/{MiniJson,SearchRank,Arabic,TonightProtocol,TonightText,TonightChat,TonightTaste,TonightResolver,TonightApi}.java \
+ *   mkdir -p out/test && javac -d out/test app/src/io/watchmatch/{MiniJson,SearchRank,Arabic,SparkQuery,TonightProtocol,TonightText,TonightChat,TonightTaste,TonightResolver,TonightApi}.java \
  *       app/test/io/watchmatch/TonightCheck.java && java -cp out/test io.watchmatch.TonightCheck
  *
  * Exits 1 when a check fails.
@@ -33,7 +33,10 @@ public final class TonightCheck {
         chat();
         api();
         resolver();
+        language();
         text();
+        expect("a catalog genre with no line keeps its own name", "Biography".equals(TonightResolver.genreLabel(EN, "biography")));
+        expect("a known genre uses its line", "Comedy".equals(TonightResolver.genreLabel(EN, "comedy")));
         System.out.println(passed + " passed, " + failed + " failed");
         if (failed > 0) System.exit(1);
     }
@@ -191,15 +194,28 @@ public final class TonightCheck {
                 && s.choices.get(8).value.equals("skip") && s.choices.get(0).value.equals("happy"));
         expect("the AI chat starts the same way", TonightChat.start(TonightChat.Mode.AI, EN).messages.get(0).text.equals(s.messages.get(0).text));
         TonightChat.State bad = answer(s, "banana");
-        expect("an unknown answer asks again", bad.canAnswer() && bad.step == 0 && bad.turns == 0
-                && bad.messages.get(bad.messages.size() - 1).text.equals("Please pick one of the options.") && bad.choices.size() == 9);
+        expect("free text is never an error: kept as words, on to the next question", bad.canAnswer() && bad.step == 1
+                && "banana".equals(bad.answers.get("ideaText")) && bad.messages.get(bad.messages.size() - 1).text.equals("Who is watching?"));
+        // Typed at the very first question: the type, language and era in it answer the rest, so the titles come at once.
+        TonightChat.State free = answer(s, "arabic movies before 2000");
+        expect("\"arabic movies before 2000\" at the mood step goes straight to the titles", free.done() && free.filters.type.equals("movie")
+                && free.filters.lang.equals("ar") && free.filters.maxYear == 1999 && free.filters.minYear == 0);
+        free = answer(s, "افلام عربيه قبل 2000");
+        expect("the same in Arabic", free.done() && free.filters.type.equals("movie") && free.filters.lang.equals("ar") && free.filters.maxYear == 1999);
+        free = answer(s, "turkish comedy");
+        expect("a genre and a language are not enough without a type: the questions go on, skipping what is answered",
+                !free.done() && free.step == 1 && free.answers.get("origin").equals("tr") && free.answers.get("idea").equals("comedy"));
+        free = answer(answer(answer(answer(free, "skip"), "movie"), "skip"), "skip");     // who, kind, length, era (idea and origin skipped)
+        expect("then the answered ones are skipped", free.done() && free.filters.lang.equals("tr") && free.filters.genres.contains("comedy"));
+        TonightChat.State upset = answer(s, "sad movies");
+        expect("a sentence with one option word is that option", "sad".equals(upset.answers.get("mood")) && !upset.done());
         s = answer(s, "tense");
         expect("who is watching next", s.step == 1 && s.messages.get(s.messages.size() - 1).text.equals("Who is watching?") && s.choices.size() == 4);
         s = answer(s, "family");
         s = answer(s, "A series");
         expect("the idea question: genres, Skip, typing allowed", s.step == 3 && s.choices.size() == 10 && s.canAnswer());
-        s = answer(s, "something with a heist");
-        expect("free text at the idea is kept as a keyword", s.step == 4 && "something with a heist".equals(s.answers.get("ideaText")) && s.answers.get("idea") == null);
+        s = answer(s, "something about dogs");
+        expect("free text at the idea is kept as a keyword", s.step == 4 && "something about dogs".equals(s.answers.get("ideaText")) && s.answers.get("idea") == null);
         s = answer(s, "short");
         expect("then the origin", s.step == 5 && s.messages.get(s.messages.size() - 1).text.equals("Which language or origin?"));
         s = answer(s, "Skip");
@@ -209,7 +225,7 @@ public final class TonightCheck {
         TonightProtocol.Filters f = s.filters;
         expect("tense + family + series + heist + short + recent", f.type.equals("tv")
                 && f.genres.equals(Arrays.asList("thriller", "mystery", "family")) && f.excludeGenres.equals(Arrays.asList("horror", "war", "crime"))
-                && f.maxMinutes == 100 && f.keywords.equals(Arrays.asList("tense", "something with a heist")) && f.minYear > 2000 && f.maxYear == 0 && f.lang.isEmpty());
+                && f.maxMinutes == 100 && f.keywords.equals(Arrays.asList("tense", "something about dogs")) && f.minYear > 2000 && f.maxYear == 0 && f.lang.isEmpty());
         expect("a finished chat takes no more answers", answer(s, "alone") == s);
         TonightChat.State allSkipped = TonightChat.start(TonightChat.Mode.FALLBACK, EN);
         for (int i = 0; i < TonightChat.steps(); i++) allSkipped = answer(allSkipped, "skip");
@@ -481,8 +497,149 @@ public final class TonightCheck {
         expect("an empty catalog gives nothing, not a crash", TonightResolver.resolve(tight, new TonightResolver.Deps(new Catalog(), liked, exclude, 2026, EN, false)).isEmpty());
         TonightResolver.Item[] lots = new TonightResolver.Item[30];
         for (int i = 0; i < lots.length; i++) lots[i] = item("m" + i, 2020, 7, 90, false, "comedy");
-        expect("at most 12 picks", TonightResolver.resolve(filters("movie", Arrays.asList("comedy"), Collections.<String>emptyList(), 0),
+        expect("at most RESULT_LIMIT picks", TonightResolver.resolve(filters("movie", Arrays.asList("comedy"), Collections.<String>emptyList(), 0),
                 new TonightResolver.Deps(new Catalog(lots), liked, exclude, 2026, EN, false)).size() == TonightResolver.RESULT_LIMIT);
+    }
+
+
+    // ---- the language and the era (the API cannot filter by language: it is read from the titles) -------------
+
+    /** The real API's shape: type, category and years are the server's, 12 titles a page, English first, one in six Arabic. */
+    private static final class Mirror implements TonightResolver.Source {
+        final List<TonightResolver.Item> all = new ArrayList<>();
+        int requests;
+
+        Mirror(int n) {
+            for (int i = 0; i < n; i++) {
+                String lang = i % 6 == 0 ? "9" : i % 17 == 0 ? "22" : "7";
+                all.add(new TonightResolver.Item("t" + i, "Title " + i, "", "", 1940 + i % 85, 6.5, 100, false,
+                        Arrays.asList(i % 2 == 0 ? "comedy" : "drama"), lang));
+            }
+        }
+
+        @Override public List<List<TonightResolver.Item>> fetch(List<TonightResolver.Query> queries) {
+            List<List<TonightResolver.Item>> out = new ArrayList<>();
+            for (TonightResolver.Query q : queries) {
+                requests++;
+                List<TonightResolver.Item> match = new ArrayList<>();
+                for (TonightResolver.Item i : all) {
+                    boolean cat = q.category.isEmpty() || q.category.equals("59") && i.genres.contains("comedy")
+                            || q.category.equals("62") && i.genres.contains("drama");
+                    boolean years = q.from == 0 && q.to == 0 || i.year >= q.from && i.year <= q.to;
+                    if (cat && years && q.type.equals(i.series ? "series" : "movies")) match.add(i);
+                }
+                int from = Math.min(match.size(), q.page * 12);
+                out.add(new ArrayList<>(match.subList(from, Math.min(match.size(), from + 12))));
+            }
+            return out;
+        }
+    }
+
+    private static void language() {
+        Map<String, Double> none = Collections.<String, Double>emptyMap();
+        Set<String> seen = Collections.<String>emptySet();
+        TonightProtocol.Filters arOld = new TonightProtocol.Filters("movie", Arrays.asList("comedy"), Collections.<String>emptyList(),
+                Collections.<String>emptyList(), 0, 0, 1999, "ar");
+        Mirror mirror = new Mirror(1200);
+        TonightResolver.Found found = TonightResolver.search(arOld, new TonightResolver.Deps(mirror, none, seen, 2026, EN, false));
+        boolean only = !found.picks.isEmpty();
+        for (TonightResolver.Pick p : found.picks) only &= p.item.lang.equals("9") && p.item.year > 0 && p.item.year <= 1999;
+        expect("Arabic + before 2000: only Arabic titles of 1999 or earlier", only);
+        expect("Arabic + before 2000: reads past the first pages to find enough", found.picks.size() == TonightResolver.RESULT_LIMIT);
+        expect("Arabic + before 2000: nothing was loosened", !found.relaxed && found.used.lang.equals("ar") && found.used.maxYear == 1999);
+        TonightResolver.Query first = TonightResolver.queries(arOld, 2026).get(0);
+        expect("the era goes to the server, a language reads six pages a round", first.to == 1999 && first.from == 1900
+                && TonightResolver.queries(arOld, 2026).size() == TonightResolver.LANG_PAGES
+                && TonightResolver.queries(arOld, 2026, 1).get(0).page == TonightResolver.LANG_PAGES);
+
+        // Few matches: honest, never filled up with English or new titles.
+        TonightProtocol.Filters rare = new TonightProtocol.Filters("movie", Arrays.asList("comedy"), Collections.<String>emptyList(),
+                Collections.<String>emptyList(), 0, 0, 1942, "ar");
+        TonightResolver.Found few = TonightResolver.search(rare, new TonightResolver.Deps(new Mirror(1200), none, seen, 2026, EN, false));
+        boolean fewOnly = few.picks.size() < TonightResolver.RESULT_LIMIT;
+        for (TonightResolver.Pick p : few.picks) fewOnly &= p.item.lang.equals("9") && p.item.year <= 1942;
+        expect("few Arabic titles up to 1942: only those, however few", fewOnly);
+        TonightProtocol.Filters none9 = new TonightProtocol.Filters("movie", Collections.<String>emptyList(), Collections.<String>emptyList(),
+                Collections.<String>emptyList(), 0, 0, 1900, "ar");
+        expect("no title fits: nothing, the language and era are not relaxed",
+                TonightResolver.search(none9, new TonightResolver.Deps(new Mirror(300), none, seen, 2026, EN, false)).picks.isEmpty());
+        expect("a language the catalog has no number for gives nothing", TonightResolver.knowsLanguage("tr")
+                && !TonightResolver.knowsLanguage("xx") && TonightResolver.filter(new Mirror(50).all, new TonightProtocol.Filters("movie", Collections.<String>emptyList(),
+                Collections.<String>emptyList(), Collections.<String>emptyList(), 0, 0, 0, "xx"), seen).isEmpty());
+        expect("a title with no year is not known to fit an era", TonightResolver.filter(Collections.singletonList(item("n", 0, 7, 90, false, "comedy")),
+                arOld.without("origin"), seen).isEmpty());
+        expect("relax never drops the language or the era", TonightResolver.relax(arOld) == null
+                || TonightResolver.relax(arOld).lang.equals("ar") && TonightResolver.relax(arOld).maxYear == 1999);
+        TonightProtocol.Filters r = arOld;
+        for (int i = 0; i < 5 && r != null; i++) {
+            expect("relax step keeps ar and 1999", r.lang.equals("ar") && r.maxYear == 1999);
+            r = TonightResolver.relax(r);
+        }
+
+        // What was said: the words and the AI's codes.
+        int y = 2026;
+        TonightProtocol.Filters blank = new TonightProtocol.Filters("any", Collections.<String>emptyList(), Collections.<String>emptyList(),
+                Collections.<String>emptyList(), 0, 0, 0, "");
+        TonightProtocol.Filters a = TonightChat.reinforce(blank, Collections.singletonList("افلام عربيه قديمه"), y, true);
+        expect("\"افلام عربيه قديمه\": Arabic films before 2000", a.lang.equals("ar") && a.maxYear == 1999 && a.minYear == 0 && a.type.equals("movie"));
+        a = TonightChat.reinforce(blank, Collections.singletonList("عربي"), y, false);
+        expect("\"عربي\" is Arabic", a.lang.equals("ar") && a.maxYear == 0);
+        a = TonightChat.reinforce(blank, Arrays.asList("comedy", "arabic movies before 2000"), y, false);
+        expect("\"arabic movies before 2000\"", a.lang.equals("ar") && a.maxYear == 1999);
+        expect("\"arabic movies before 2000\" also says the type (the Movies chip), in the AI's chat too", a.type.equals("movie"));
+        TonightResolver.Item dubbed = new TonightResolver.Item("d", "Remi", "", "", 1996, 7, 0, true, Arrays.asList("arabic dubbed", "adventure"), "9");
+        TonightResolver.Item real = new TonightResolver.Item("r", "Film", "", "", 1980, 7, 100, false, Arrays.asList("comedy"), "9");
+        expect("Arabic: a title dubbed into Arabic is not an Arabic title; a series is not a film",
+                TonightResolver.filter(Arrays.asList(dubbed, real), arOld.without("kind"), seen).size() == 1
+                && TonightResolver.filter(Arrays.asList(dubbed, real), arOld, seen).size() == 1
+                && TonightResolver.filter(Arrays.asList(dubbed, real), arOld, seen).get(0).id.equals("r"));
+        a = TonightChat.reinforce(blank, Collections.singletonList("2000 to 2019"), y, false);
+        expect("\"2000 to 2019\"", a.minYear == 2000 && a.maxYear == 2019);
+        a = TonightChat.reinforce(blank, Collections.singletonList("من 2000 الى 2019"), y, false);
+        expect("\"من 2000 الى 2019\"", a.minYear == 2000 && a.maxYear == 2019);
+        a = TonightChat.reinforce(blank, Collections.singletonList("last 5 years"), y, false);
+        expect("\"last 5 years\"", a.minYear == 2021 && a.maxYear == 0);
+        a = TonightChat.reinforce(blank, Collections.singletonList("classics"), y, false);
+        expect("\"classics\"", a.maxYear == 1999);
+        a = TonightChat.reinforce(blank, Collections.singletonList("تركي"), y, false);
+        expect("Turkish", a.lang.equals("tr"));
+        TonightProtocol.Filters ai = new TonightProtocol.Filters("movie", Collections.<String>emptyList(), Collections.<String>emptyList(),
+                Collections.<String>emptyList(), 0, 2010, 2015, "ko");
+        expect("what the AI set is never replaced", TonightChat.reinforce(ai, Collections.singletonList("افلام عربيه قديمه"), y, true) == ai);
+        TonightChat.State st = TonightChat.start(TonightChat.Mode.AI, EN);
+        st = TonightChat.addUser(st, "افلام عربيه قديمه");
+        st = TonightChat.applyReply(st, reply("{\"say\":\"ok\",\"choices\":[],\"filters\":{\"type\":\"movie\",\"genres\":[\"comedy\"]}}"), EN);
+        expect("the AI's filters without a language get it from what was said", st.filters.lang.equals("ar") && st.filters.maxYear == 1999);
+
+        // The fixed questions: a button shows its label; a typed idea carries its language and era.
+        TonightChat.State fb = TonightChat.start(TonightChat.Mode.FALLBACK, EN);
+        for (int i = 0; i < 3; i++) fb = TonightChat.answerFallback(fb, "skip", EN);       // mood, company, kind
+        fb = TonightChat.answerFallback(fb, "اكشن عربي قديم؟", EN);
+        expect("a typed idea answers the language and the era too", fb.step == 4 && fb.answers.get("origin").equals("ar"));
+        fb = TonightChat.answerFallback(fb, "skip", EN);       // length: the origin and era questions are skipped
+        expect("fixed questions end with the language", fb.done() && fb.filters.lang.equals("ar") && fb.filters.maxYear == 1999);
+        TonightChat.State btn = TonightChat.start(TonightChat.Mode.FALLBACK, EN);
+        for (int i = 0; i < 5; i++) btn = TonightChat.answerFallback(btn, "skip", EN);
+        btn = TonightChat.answerFallback(btn, "ar", "Arabic", EN);
+        expect("a button's line is its label", btn.messages.get(btn.messages.size() - 2).text.equals("Arabic"));
+        // The AI goes away mid-chat: what was typed is not asked again.
+        TonightChat.State mid = TonightChat.addUser(TonightChat.start(TonightChat.Mode.AI, EN), "arabic movies before 2000");
+        TonightChat.State down = TonightChat.toFallback(mid, EN);
+        expect("the AI lost mid-chat: enough was said, the titles come", down.done() && down.filters.lang.equals("ar") && down.filters.maxYear == 1999);
+        TonightChat.State mid2 = TonightChat.toFallback(TonightChat.addUser(TonightChat.start(TonightChat.Mode.AI, EN), "something fun"), EN);
+        expect("the AI lost mid-chat: nothing understood, the questions start", !mid2.done() && mid2.step == 0 && mid2.canAnswer());
+        Map<String, String> typed = new LinkedHashMap<>();
+        typed.put("ideaText", "افلام عربيه قديمه");
+        TonightProtocol.Filters tf = TonightChat.filtersFromAnswers(typed, y);
+        expect("a typed idea reads its language, era and kind", tf.lang.equals("ar") && tf.maxYear == 1999 && tf.type.equals("movie"));
+
+        // Chips come off one at a time.
+        expect("chips: kind, genre, language, era", arOld.parts().equals(Arrays.asList("kind", "genre:comedy", "origin", "era")));
+        TonightProtocol.Filters minus = arOld.without("origin").without("era").without("genre:comedy").without("kind");
+        expect("chips: taking each off", minus.lang.isEmpty() && minus.maxYear == 0 && minus.genres.isEmpty() && minus.type.equals("any") && minus.parts().isEmpty());
+        SparkQuery sq = arOld.query();
+        expect("Spark's query from the filters", sq.origin.equals("ar") && sq.era.equals(SparkQuery.BEFORE) && sq.to == 1999
+                && sq.kind.equals("movie") && sq.genres.equals(Collections.singletonList("comedy")));
     }
 
     // ---- the words ------------------------------------------------------------------------------

@@ -17,9 +17,13 @@ import java.util.Set;
 final class TonightResolver {
     private TonightResolver() {}
 
-    static final int RESULT_LIMIT = 12, PAGES = 2, GENRE_QUERIES = 2, WIDE_PAGES = 3;
+    static final int RESULT_LIMIT = 24, PAGES = 2, GENRE_QUERIES = 2, WIDE_PAGES = 3;
+    /** A language filter reads deeper (the API cannot filter by language): more pages per round and more rounds. */
+    /** The catalog's category of foreign titles dubbed into Arabic: its language number says Arabic, they are not. */
+    static final String DUBBED = "arabic dubbed";
+    static final int LANG_PAGES = 6, LANG_ROUNDS = 5, ROUNDS = 2;
     private static final double GENRE_MATCH_WEIGHT = 4, KEYWORD_WEIGHT = 1, KEYWORD_MAX = 3, UNKNOWN_STARS = 5, MIN_STARS = 5.5,
-            STARS_WEIGHT = 0.6, HIGH_STARS = 7, AFFINITY_CAP = 5, UNASKED_ANIMATION = 2.5, FRESH_BONUS = 1, RECENT_BONUS = 0.5;
+            STARS_WEIGHT = 0.6, HIGH_STARS = 7, AFFINITY_CAP = 5, UNASKED_ANIMATION = 4, FRESH_BONUS = 1, RECENT_BONUS = 0.5;
     private static final int FRESH_YEARS = 2, RECENT_YEARS = 8;
 
     /** The catalog's category ids by the server's genre names (music and western have none). */
@@ -39,9 +43,30 @@ final class TonightResolver {
         ALIAS.put("musical", "music");
     }
 
+    /** The catalog's language numbers (language_lighttigerNb), by two-letter code: the API cannot filter by them. */
+    private static final Map<String, List<String>> LANGUAGE = new HashMap<>();
+    static {
+        String[][] l = {{"ar", "9"}, {"en", "7"}, {"hi", "10"}, {"fr", "11"}, {"de", "12"}, {"es", "14"}, {"zh", "21", "52"},
+                {"ja", "22"}, {"ko", "23"}, {"ru", "24"}, {"tr", "25"}};
+        for (String[] r : l) LANGUAGE.put(r[0], java.util.Arrays.asList(java.util.Arrays.copyOfRange(r, 1, r.length)));
+    }
+
+    /** Can the catalog be filtered by this language code? */
+    static boolean knowsLanguage(String code) {
+        return LANGUAGE.containsKey(code);
+    }
+
+    /** Is a title of the catalog's language number `nb` in the language `code`? An unknown number is not. */
+    static boolean inLanguage(String code, String nb) {
+        List<String> ids = LANGUAGE.get(code);
+        return ids != null && nb != null && ids.contains(nb);
+    }
+
     /** A title of the catalog, as the ranking needs it. `genres`: lower case English names. year, minutes: 0 when unknown. */
     static final class Item {
         final String id, title, other, text;
+        /** The catalog's language number ("" unknown). */
+        final String lang;
         final int year, minutes;
         final double stars;
         final boolean series;
@@ -49,6 +74,12 @@ final class TonightResolver {
 
         Item(String id, String title, String other, String text, int year, double stars, int minutes, boolean series,
              List<String> genres) {
+            this(id, title, other, text, year, stars, minutes, series, genres, "");
+        }
+
+        Item(String id, String title, String other, String text, int year, double stars, int minutes, boolean series,
+             List<String> genres, String lang) {
+            this.lang = lang == null ? "" : lang;
             this.id = id;
             this.title = title;
             this.other = other;
@@ -120,24 +151,36 @@ final class TonightResolver {
         return alias != null ? alias : n;
     }
 
-    /** The pages to ask for these filters. */
+    /** The first round of pages for these filters. */
     static List<Query> queries(TonightProtocol.Filters f, int thisYear) {
+        return queries(f, thisYear, 0);
+    }
+
+    /** How many rounds of pages may be read: a language reads deeper, as the API cannot filter by it. */
+    static int rounds(TonightProtocol.Filters f) {
+        return f.lang.isEmpty() ? ROUNDS : LANG_ROUNDS;
+    }
+
+    /** The pages of one round (0, 1…) to ask for these filters; the era is the server's, the language is checked here. */
+    static List<Query> queries(TonightProtocol.Filters f, int thisYear, int round) {
         List<String> types = new ArrayList<>();
         if (!TonightProtocol.TV.equals(f.type)) types.add("movies");
         if (!TonightProtocol.MOVIE.equals(f.type)) types.add("series");
         List<String> categories = new ArrayList<>();
+        int most = f.lang.isEmpty() ? GENRE_QUERIES : 1;
         for (String g : f.genres) {
             String id = CATEGORY.get(g);
-            if (id != null && !categories.contains(id) && categories.size() < GENRE_QUERIES) categories.add(id);
+            if (id != null && !categories.contains(id) && categories.size() < most) categories.add(id);
         }
         int from = f.minYear > 0 || f.maxYear > 0 ? (f.minYear > 0 ? f.minYear : 1900) : 0;
         int to = f.minYear > 0 || f.maxYear > 0 ? (f.maxYear > 0 ? f.maxYear : thisYear + 1) : 0;
         boolean wide = categories.isEmpty();
         if (wide) categories.add("");
+        int pages = !f.lang.isEmpty() ? LANG_PAGES : wide ? WIDE_PAGES : PAGES;
         List<Query> out = new ArrayList<>();
         for (String type : types) {
             for (String category : categories) {
-                for (int page = 0; page < (wide ? WIDE_PAGES : PAGES); page++) out.add(new Query(type, category, from, to, page));
+                for (int page = round * pages; page < (round + 1) * pages; page++) out.add(new Query(type, category, from, to, page));
             }
         }
         return out;
@@ -150,14 +193,16 @@ final class TonightResolver {
         for (Item t : items) {
             if (exclude.contains(t.id) || !seen.add(t.id)) continue;
             if (!names.add(sameTitle(t))) continue;                  // the same film under two numbers
+            if (!f.lang.isEmpty() && !inLanguage(f.lang, t.lang)) continue;
+            if ("ar".equals(f.lang) && t.genres.contains(DUBBED)) continue;      // foreign titles dubbed into Arabic (Remi, Lady Oscar)     // never loosened: the era and language are asked
             if (!f.genres.isEmpty() && !sharesGenre(t, f.genres)) continue;     // at least one of what was asked for
             if (TonightProtocol.MOVIE.equals(f.type) && t.series) continue;
             if (TonightProtocol.TV.equals(f.type) && !t.series) continue;
             boolean banned = false;
             for (String g : t.genres) if (f.excludeGenres.contains(g)) banned = true;
             if (banned) continue;
-            if (f.minYear > 0 && t.year > 0 && t.year < f.minYear) continue;
-            if (f.maxYear > 0 && t.year > 0 && t.year > f.maxYear) continue;
+            if (f.minYear > 0 && (t.year == 0 || t.year < f.minYear)) continue;       // no year: not known to fit
+            if (f.maxYear > 0 && (t.year == 0 || t.year > f.maxYear)) continue;
             if (f.maxMinutes > 0 && !t.series && t.minutes > 0 && t.minutes > f.maxMinutes) continue;
             if (t.stars > 0 && t.stars < MIN_STARS) continue;       // rated by the catalog's own viewers, and low
             out.add(t);
@@ -210,7 +255,9 @@ final class TonightResolver {
         return out;
     }
 
-    private static String genreLabel(TonightText.Tr tr, String genre) {
+    /** The genre's name in the TV's language; a catalog genre the app has no line for (Biography...) keeps its own name. */
+    static String genreLabel(TonightText.Tr tr, String genre) {
+        if (!TonightText.ids().contains("g:" + genre)) return genre.isEmpty() ? genre : Character.toUpperCase(genre.charAt(0)) + genre.substring(1);
         return TonightText.get(tr, "g:" + genre);
     }
 
@@ -235,28 +282,59 @@ final class TonightResolver {
         return TonightText.get(tr, "popular");
     }
 
-    /** Loosens the filters a step at a time when nothing matched: limits first, then exclusions, then genres. Null at the end. */
+    /**
+     * Loosens the filters a step at a time when nothing matched: the time limit first, then exclusions, then genres. Null
+     * at the end. The language and the era are never loosened: they are what the person asked for.
+     */
     static TonightProtocol.Filters relax(TonightProtocol.Filters f) {
-        if (f.hasLimits()) return f.withoutLimits();
+        if (f.maxMinutes > 0) return f.without("minutes");
         if (!f.excludeGenres.isEmpty()) return f.withoutExclusions();
         if (!f.genres.isEmpty() || !f.keywords.isEmpty()) return f.withoutGenres();
         return null;
     }
 
+    /** What was found: the picks, the filters that gave them and whether any genre, exclusion or time limit was dropped. */
+    static final class Found {
+        final List<Pick> picks;
+        final TonightProtocol.Filters used;
+        final boolean relaxed;
+
+        Found(List<Pick> picks, TonightProtocol.Filters used, boolean relaxed) {
+            this.picks = Collections.unmodifiableList(new ArrayList<>(picks));
+            this.used = used;
+            this.relaxed = relaxed;
+        }
+    }
+
     /** Real titles for the filters, best first, each with its reason; relaxes the filters when nothing matched. Blocking. */
     static List<Pick> resolve(TonightProtocol.Filters filters, Deps d) {
+        return search(filters, d).picks;
+    }
+
+    /**
+     * Reads rounds of pages until enough titles fit (a language or an era is rare in the catalog's order) or the rounds
+     * or the catalog end; the language and the era are filters, never relaxed.
+     */
+    static Found search(TonightProtocol.Filters filters, Deps d) {
         for (TonightProtocol.Filters f = filters; f != null; f = relax(f)) {
-            List<Item> all = new ArrayList<>();
-            for (List<Item> l : d.source.fetch(queries(f, d.thisYear))) all.addAll(l);
-            List<Item> good = filter(all, f, d.exclude);
+            List<Item> all = new ArrayList<>(), good = new ArrayList<>();
+            for (int round = 0; round < rounds(f); round++) {
+                boolean any = false;
+                for (List<Item> l : d.source.fetch(queries(f, d.thisYear, round))) {
+                    all.addAll(l);
+                    any |= !l.isEmpty();
+                }
+                good = filter(all, f, d.exclude);
+                if (!any || good.size() >= RESULT_LIMIT) break;
+            }
             if (good.isEmpty()) continue;
             List<Item> ranked = rank(good, f, d.affinity, d.thisYear);
             List<Pick> out = new ArrayList<>();
             for (int i = 0; i < ranked.size() && i < RESULT_LIMIT; i++) {
                 out.add(new Pick(ranked.get(i), reason(ranked.get(i), f, d.affinity, d.tr, d.arabic)));
             }
-            return out;
+            return new Found(out, f, f != filters);
         }
-        return Collections.emptyList();
+        return new Found(Collections.<Pick>emptyList(), filters, false);
     }
 }

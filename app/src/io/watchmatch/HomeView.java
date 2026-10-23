@@ -2085,7 +2085,7 @@ final class HomeView extends View implements Choreographer.FrameCallback, HomeDa
                 activity.startActivity(new Intent(activity, SearchActivity.class));
             } else if (barButtons[topIndex].kind == SPARK) {
                 click.open();
-                activity.startActivity(TonightData.launch(activity));
+                activity.startActivity(TonightData.launch(activity, TonightActivity.STYLE_APPS));
             } else if (barButtons[topIndex].kind == HomeApps.INPUTS) {
                 click.open();
                 openInputs();

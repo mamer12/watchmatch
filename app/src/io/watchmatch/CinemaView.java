@@ -1029,7 +1029,7 @@ final class CinemaView extends View implements Choreographer.FrameCallback, Thum
                     break;
                 }
                 if (navFocus == NAV_SPARK) {
-                    getContext().startActivity(TonightData.launch(getContext()));
+                    getContext().startActivity(TonightData.launch(getContext(), TonightActivity.STYLE_CATALOG));
                     break;
                 }
                 inNav = false;

@@ -31,11 +31,17 @@ final class TonightData {
     private static final String GENRE_SEPARATOR = " · ";
     private static final ExecutorService POOL = Executors.newFixedThreadPool(4);
 
-    /** Opens Spark Tonight: Watchme+'s own app when it has the screen (its data is the one that counts), else this copy. */
-    static Intent launch(Context c) {
+    /**
+     * Opens Ask Spark. `style` says who asked and so how the results look: TonightActivity.STYLE_APPS (WatchMatch's home:
+     * the results by app) or STYLE_CATALOG (Watchme+: the titles themselves). Either way Watchme+'s own app when it is
+     * installed: its sync session (the AI), profile and taste live there; this copy only when it is not.
+     */
+    static Intent launch(Context c, String style) {
+        boolean apps = TonightActivity.STYLE_APPS.equals(style);
         Intent standalone = new Intent().setComponent(new ComponentName(CinemaActivity.STANDALONE, TonightActivity.class.getName()));
         boolean installed = standalone.resolveActivity(c.getPackageManager()) != null;
-        return (installed ? standalone : new Intent(c, TonightActivity.class)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        return (installed ? standalone : new Intent(c, TonightActivity.class)).putExtra(TonightActivity.EXTRA_STYLE, apps
+                ? TonightActivity.STYLE_APPS : TonightActivity.STYLE_CATALOG).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
     }
 
     /** The AI, with this process's sync session (none: the fixed questions). */
@@ -170,7 +176,28 @@ final class TonightData {
             if (t.poster.isEmpty()) continue;
             LAST.put(t.id, t);
             out.add(new TonightResolver.Item(t.id, t.title, t.other, t.title + " " + t.other + " " + t.overview, year, stars,
-                    t.minutes, t.series, genres));
+                    t.minutes, t.series, genres, t.language));
+        }
+        return out;
+    }
+
+    /** The picks as search-style cards for Watchme+ (a poster, the title, "1998 · ★ 6.4"); what OK opens is its page by number. */
+    static List<Catalog.Entry> entries(List<TonightResolver.Pick> picks) {
+        List<Catalog.Entry> out = new ArrayList<>();
+        for (TonightResolver.Pick p : picks) {
+            TonightResolver.Item item = p.item;
+            Library.Title t = LAST.get(item.id);
+            if (t == null || t.poster.isEmpty()) continue;
+            Catalog.Entry e = new Catalog.Entry();
+            e.title = item.title;
+            StringBuilder sub = new StringBuilder(item.year > 0 ? String.valueOf(item.year) : "");
+            if (item.stars > 0) sub.append(sub.length() > 0 ? " · " : "").append("★ ").append(String.format(Locale.US, "%.1f", item.stars));
+            e.sub = sub.toString();
+            e.image = e.still = t.poster;
+            e.pkg = Endpoints.PKG;
+            e.id = item.id;
+            e.query = item.other.isEmpty() ? item.title : item.other;
+            out.add(e);
         }
         return out;
     }

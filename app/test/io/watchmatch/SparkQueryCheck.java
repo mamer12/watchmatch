@@ -20,6 +20,8 @@ public final class SparkQueryCheck {
         // The brief's examples, in both languages.
         check("افلام عصابات جديده", "movie", list("crime"), "new", 2023, 0, null, false, null, "");
         check("new gangster movies", "movie", list("crime"), "new", 2023, 0, null, false, null, "");
+        check("last 5 years comedy movies", "movie", list("comedy"), "new", 2021, 0, null, false, null, "");
+        check("افلام عربيه قبل 2000", "movie", list(), "before", 0, 1999, "ar", false, null, "");
         check("مسلسل بريكينج باد", "tv", list(), null, 0, 0, null, false, null, "بريكينج باد");
         check("breaking bad series", "tv", list(), null, 0, 0, null, false, null, "breaking bad");
         check("افلام كوميديه اجنبيه", "movie", list("comedy"), null, 0, 0, "foreign", false, null, "");

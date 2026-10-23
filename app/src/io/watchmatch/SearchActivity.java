@@ -13,7 +13,6 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
-import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -671,34 +670,7 @@ public class SearchActivity extends Activity implements Thumbs.Listener {
 
     /** Its own page where the app allows it (Watchme+ by number, Apple TV and Netflix by link, YouTube), else the app. */
     private void open(final Catalog.Entry e) {
-        if (Endpoints.PKG.equals(e.pkg)) {
-            start(WatchMe.open(this, e.id, e.query != null ? e.query : e.title));
-        } else if (e.video != null) {
-            start(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=" + e.video)).setPackage(e.pkg));
-        } else if (Links.service(e.pkg) != null && e.tmdb != null) {
-            io.execute(() -> {
-                final String link = Links.find(e.title, e.tmdb, e.pkg);
-                main.post(() -> start(link != null ? new Intent(Intent.ACTION_VIEW, Uri.parse(link)).setPackage(e.pkg)
-                        : e.search != null ? Spark.searchIntent(e.search, e.query)
-                        : HomeApps.launchIntent(getPackageManager(), e.pkg)));
-            });
-            return;
-        } else if (e.search != null) {
-            start(Spark.searchIntent(e.search, e.query));       // Spark: the app's own search, with the title
-        } else {
-            start(HomeApps.launchIntent(getPackageManager(), e.pkg));
-        }
-        if (!Endpoints.PKG.equals(e.pkg)) Watched.add(this, e);
-    }
-
-    private void start(Intent i) {
-        if (i == null) return;
-        try {
-            startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-        } catch (ActivityNotFoundException | SecurityException ex) {
-            Intent app = HomeApps.launchIntent(getPackageManager(), i.getPackage() == null ? "" : i.getPackage());
-            if (app != null) startActivity(app.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-        }
+        EntryOpen.open(this, e);
     }
 
     private TextView text(float size, int color) {

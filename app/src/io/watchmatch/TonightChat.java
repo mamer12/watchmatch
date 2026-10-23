@@ -46,7 +46,7 @@ final class TonightChat {
         }
     }
 
-    private static final String SKIP = "skip", IDEA = "idea", IDEA_TEXT = "ideaText";
+    private static final String SKIP = "skip", IDEA = "idea", IDEA_TEXT = "ideaText", SAID = "said";
     private static final String[] SKIP_OPTION = {SKIP, SKIP, "skip", "pass", "pular", "omitir", "saltar", "تخطي", "تجاوز"};
 
     private static String[] genre(String id, String... words) {
@@ -156,12 +156,76 @@ final class TonightChat {
         String type = "movie".equals(kind) ? TonightProtocol.MOVIE : "tv".equals(kind) ? TonightProtocol.TV : TonightProtocol.ANY;
         List<String> keywords = new ArrayList<>();
         if (mood != null && !mood.isEmpty()) keywords.add(mood);
-        if (text != null && !text.isEmpty()) keywords.add(text);
+        if (text != null && !text.isEmpty()) keywords.add(text.toLowerCase(java.util.Locale.ROOT));
         String era = a.get("era");
         int minYear = "new".equals(era) ? thisYear - RECENT_YEARS : "mid".equals(era) ? 2000 : 0;
         int maxYear = "mid".equals(era) ? 2019 : "old".equals(era) ? 1999 : 0;
-        return new TonightProtocol.Filters(type, new ArrayList<>(genres), exclude, keywords,
+        TonightProtocol.Filters f = new TonightProtocol.Filters(type, new ArrayList<>(genres), exclude, keywords,
                 "short".equals(a.get("length")) ? SHORT_MINUTES : 0, minYear, maxYear, a.containsKey("origin") ? a.get("origin") : "");
+        // What was typed at the idea ("افلام عربيه قديمه", "old Turkish comedy") says its language and era too.
+        List<String> said = new ArrayList<>();
+        if (a.containsKey(SAID)) said.addAll(Arrays.asList(a.get(SAID).split("\n")));
+        if (text != null && !text.isEmpty()) said.add(text);
+        return said.isEmpty() ? f : reinforce(f, said, thisYear, true);
+    }
+
+    /** The two-letter language of a Spark origin ("مصري" is Arabic), or "" (none, or "not Arabic"). */
+    static String langOf(String origin) {
+        if (origin == null) return "";
+        switch (origin) {
+            case SparkQuery.ARABIC: case SparkQuery.EGYPTIAN: case SparkQuery.GULF: return "ar";
+            case SparkQuery.AMERICAN: return "en";
+            case SparkQuery.TURKISH: case SparkQuery.KOREAN: case SparkQuery.HINDI: case SparkQuery.JAPANESE: return origin;
+            default: return "";
+        }
+    }
+
+    /**
+     * What the person said, read again by Spark's own words (Arabic too): a language or an era the AI (or the fixed
+     * questions) left out is added from it, never replacing one that is there. `all`: also the type and the genres,
+     * when there are none. The last thing said about each wins.
+     */
+    static TonightProtocol.Filters reinforce(TonightProtocol.Filters f, List<String> said, int thisYear, boolean all) {
+        String lang = f.lang, type = f.type;
+        int min = f.minYear, max = f.maxYear;
+        List<String> genres = new ArrayList<>(f.genres);
+        boolean noYears = min == 0 && max == 0;
+        String saidLang = "";
+        int saidMin = 0, saidMax = 0;
+        String saidType = null;
+        List<String> saidGenres = new ArrayList<>();
+        for (String text : said) {
+            SparkQuery q = SparkQuery.parse(text, thisYear);
+            if (!langOf(q.origin).isEmpty()) saidLang = langOf(q.origin);
+            if (q.era != null) {
+                saidMin = q.from;
+                saidMax = q.to;
+            }
+            if (q.kind != null) saidType = SparkQuery.MOVIE.equals(q.kind) ? TonightProtocol.MOVIE : TonightProtocol.TV;
+            for (String g : q.genres) {
+                String name = "scifi".equals(g) ? "sci-fi" : g;
+                if (TonightProtocol.GENRES.contains(name) && !saidGenres.contains(name)) saidGenres.add(name);
+            }
+        }
+        if (lang.isEmpty()) lang = saidLang;
+        if (noYears) {
+            min = saidMin;
+            max = saidMax;
+        }
+        if (TonightProtocol.ANY.equals(type) && saidType != null) type = saidType;      // "movies" said, whatever the AI sent
+        if (all) {
+            for (String g : saidGenres) if (!genres.contains(g)) genres.add(g);
+        }
+        if (lang.equals(f.lang) && min == f.minYear && max == f.maxYear && type.equals(f.type) && genres.equals(f.genres)) return f;
+        genres.removeAll(f.excludeGenres);
+        return new TonightProtocol.Filters(type, genres, f.excludeGenres, f.keywords, f.maxMinutes, min, max, lang);
+    }
+
+    /** The person's own lines of a chat. */
+    private static List<String> userLines(List<TonightProtocol.Msg> messages) {
+        List<String> out = new ArrayList<>();
+        for (TonightProtocol.Msg m : messages) if (m.user) out.add(m.text);
+        return out;
     }
 
     /** Spelling and punctuation aside: lower case words with single spaces. */
@@ -256,10 +320,64 @@ final class TonightChat {
         return askStep(base, 0, null, tr);
     }
 
-    /** Switches to the fixed questions (the AI is unreachable), from the first one, keeping what was said. */
+    /** The questions an answer in words already answered are not asked again. */
+    private static int firstOpen(Map<String, String> answers, int from) {
+        int next = from;
+        while (next < STEPS.length && answers.containsKey(STEPS[next].id)) next++;
+        return next;
+    }
+
+    /** What a sentence says (Spark's words, Arabic too) as answers: the type, a genre, the language, an era. False when nothing. */
+    private static boolean absorb(Map<String, String> answers, String text, int thisYear) {
+        SparkQuery q = SparkQuery.parse(text, thisYear);
+        boolean any = false;
+        if (q.kind != null) {
+            answers.put("kind", SparkQuery.MOVIE.equals(q.kind) ? "movie" : "tv");
+            any = true;
+        }
+        for (String g : q.genres) {
+            String name = "scifi".equals(g) ? "sci-fi" : g;
+            if (TonightProtocol.GENRES.contains(name)) {
+                answers.put(IDEA, name);
+                any = true;
+                break;
+            }
+        }
+        String lang = langOf(q.origin);
+        if (!lang.isEmpty()) {
+            answers.put("origin", lang);
+            any = true;
+        }
+        if (q.era != null) {
+            answers.put("era", SAID);       // the years come from the words (reinforce), not from one of the era buttons
+            any = true;
+        }
+        if (any) answers.put(SAID, answers.containsKey(SAID) ? answers.get(SAID) + "\n" + text : text);
+        return any;
+    }
+
+    /** Enough to go straight to the titles: a type and at least one of a genre, a language or an era. */
+    private static boolean enough(Map<String, String> a) {
+        return a.containsKey("kind") && (a.containsKey(IDEA) || a.containsKey("origin") || a.containsKey("era"));
+    }
+
+    private static State finish(State s, List<TonightProtocol.Msg> msgs, Map<String, String> answers, TonightText.Tr tr) {
+        return s.with(s.mode, say(msgs, TonightText.get(tr, "leadIn")), s.turns, Status.DONE, Collections.<Choice>emptyList(),
+                filtersFromAnswers(answers, java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)), STEPS.length, answers);
+    }
+
+    /**
+     * Switches to the fixed questions (the AI is unreachable), keeping what was said: what the person's lines already
+     * answer is not asked again, and when it is enough the titles come at once.
+     */
     static State toFallback(State s, TonightText.Tr tr) {
-        State f = s.with(Mode.FALLBACK, s.messages, s.turns, Status.ASKING, s.choices, null, 0, Collections.<String, String>emptyMap());
-        return askStep(f, 0, TonightText.get(tr, "fallbackNote"), tr);
+        int year = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR);
+        Map<String, String> answers = new LinkedHashMap<>();
+        boolean understood = false;
+        for (String line : userLines(s.messages)) understood |= absorb(answers, line, year);
+        State f = s.with(Mode.FALLBACK, s.messages, s.turns, Status.ASKING, s.choices, null, 0, answers);
+        if (understood && enough(answers)) return finish(f, say(f.messages, TonightText.get(tr, "fallbackNote")), answers, tr);
+        return askStep(f, firstOpen(answers, 0), TonightText.get(tr, "fallbackNote"), tr);
     }
 
     /** Records what the person said. The same state when it's empty or the chat isn't waiting for an answer. */
@@ -276,26 +394,35 @@ final class TonightChat {
      * where any other text is the person's own words. Skip moves on without an answer.
      */
     static State answerFallback(State s, String input, TonightText.Tr tr) {
+        return answerFallback(s, input, input, tr);
+    }
+
+    /** `shown`: the line the chat shows for it (a button's label, not its value: "Arabic", not "ar"). */
+    static State answerFallback(State s, String input, String shown, TonightText.Tr tr) {
         if (s.step >= STEPS.length || !s.canAnswer() || s.mode != Mode.FALLBACK) return s;
         Step step = STEPS[s.step];
+        int year = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR);
         String option = matchOption(step, input);
-        State withUser = addUser(s, input);
+        Map<String, String> said = new LinkedHashMap<>();
+        absorb(said, input, year);
+        State withUser = addUser(s, shown);
         if (withUser == s) return s;
         Map<String, String> answers = new LinkedHashMap<>(withUser.answers);
-        if (option == null && IDEA.equals(step.id)) {
-            answers.put(IDEA_TEXT, TonightProtocol.cleanText(input, MAX_IDEA));
-        } else if (option == null) {
-            return withUser.with(s.mode, say(withUser.messages, TonightText.get(tr, "pickOne")), s.turns, Status.ASKING,
-                    choicesFor(step, tr), s.filters, s.step, s.answers);
-        } else if (!SKIP.equals(option)) {
-            answers.put(step.id, option);
+        // Free text is always welcome. A sentence that says two or more things (a type, a genre, a language, an era) is
+        // taken as that, even when a word of it is also an option; one word that is an option is that option.
+        int said2 = (said.containsKey("kind") ? 1 : 0) + (said.containsKey(IDEA) ? 1 : 0) + (said.containsKey("origin") ? 1 : 0)
+                + (said.containsKey("era") ? 1 : 0);
+        boolean understood = false;
+        if (option != null && said2 < 2) {
+            if (!SKIP.equals(option)) answers.put(step.id, option);
+        } else if (said2 > 0) {
+            understood = absorb(answers, input, year);
+        } else if (!answers.containsKey(IDEA_TEXT)) {
+            answers.put(IDEA_TEXT, TonightProtocol.cleanText(input, MAX_IDEA));      // not understood: kept as words to look for
         }
-        int next = s.step + 1;
-        if (next >= STEPS.length) {
-            return withUser.with(s.mode, say(withUser.messages, TonightText.get(tr, "leadIn")), withUser.turns, Status.DONE,
-                    Collections.<Choice>emptyList(), filtersFromAnswers(answers, java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)),
-                    next, answers);
-        }
+        if (understood && enough(answers)) return finish(withUser, withUser.messages, answers, tr);
+        int next = firstOpen(answers, s.step + 1);
+        if (next >= STEPS.length) return finish(withUser, withUser.messages, answers, tr);
         return askStep(withUser.with(s.mode, withUser.messages, withUser.turns, Status.ASKING, withUser.choices, s.filters,
                 s.step, answers), next, null, tr);
     }
@@ -306,7 +433,9 @@ final class TonightChat {
         if (r.filters != null) {
             List<Choice> refine = new ArrayList<>();
             for (String c : r.choices) refine.add(new Choice(c, c));
-            return s.with(s.mode, msgs, s.turns, Status.DONE, refine, r.filters, s.step, s.answers);
+            TonightProtocol.Filters f = reinforce(r.filters, userLines(s.messages),
+                    java.util.Calendar.getInstance().get(java.util.Calendar.YEAR), false);
+            return s.with(s.mode, msgs, s.turns, Status.DONE, refine, f, s.step, s.answers);
         }
         if (s.turns >= TonightProtocol.MAX_USER_TURNS) {
             return s.with(s.mode, say(msgs, TonightText.get(tr, "capped")), s.turns, Status.DONE, Collections.<Choice>emptyList(),

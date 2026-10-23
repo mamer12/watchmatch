@@ -11,9 +11,51 @@
     <!-- Spark Tonight can listen to the answer. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <!-- Trailers open in YouTube. -->
+    <!-- Trailers open in YouTube; and Ask Spark (opened here from WatchMatch's home) finds titles in the TV's apps and opens them. -->
     <queries>
+        <package android:name="com.netflix.ninja" />
         <package android:name="com.google.android.youtube.tv" />
+        <package android:name="com.amazon.amazonvideo.livingroom" />
+        <package android:name="com.disney.disneyplus" />
+        <package android:name="com.wbd.stream" />
+        <package android:name="com.apple.atve.androidtv.appletv" />
+        <package android:name="com.hulu.livingroomplus" />
+        <package android:name="com.cbs.ott" />
+        <package android:name="com.peacocktv.peacockandroid" />
+        <package android:name="com.globo.globotv" />
+        <package android:name="com.spotify.tv.android" />
+        <package android:name="com.tcl.tv" />
+        <package android:name="com.google.android.tv" />
+        <package android:name="com.mediatek.wwtv.tvcenter" />
+        <package android:name="com.sony.dtv.tvx" />
+        <package android:name="com.shabakaty.cbox.cinemana" />
+        <package android:name="io.watchmatch" />
+        <!-- Spark: apps it finds titles in, or sends the search to. -->
+        <package android:name="net.mbc.shahidTV" />
+        <package android:name="com.osn.go" />
+        <package android:name="com.todtv.tod" />
+        <package android:name="com.parsifal.starz" />
+        <package android:name="iq.almanasa.tvandroid" />
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="content" android:host="android.media.tv" />
+        </intent>
+        <!-- Spark: the apps' own search screens, to send them what was said. -->
+        <intent>
+            <action android:name="android.intent.action.SEARCH" />
+        </intent>
+        <!-- Voice search: the TV's own speech recognizer. -->
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+        <!-- And its service, which the search box listens through (SpeechRecognizer). -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
     </queries>
 
     <!-- WatchMatch (signed with the same key) reads Continue watching and My List for its home screen. -->

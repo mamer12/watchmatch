@@ -44,6 +44,8 @@ final class Library {
     /** A movie, a series or one episode. */
     static final class Title {
         String id = "", title = "", other = "", overview = "", year = "", stars = "", genres = "";
+        /** The catalog's language number of the title ("9" Arabic, "7" English…), "" when the list did not say. */
+        String language = "";
         String poster = "", backdrop;     // backdrop: null until asked, "" when TMDB has none
         /** The title's logo (TMDB, transparent), "" when none; the catalog's wide cover art (banner titles), "" when none. */
         String logo = "", cover = "";
@@ -582,6 +584,7 @@ final class Library {
         t.overview = (arabicFirst && !arText.isEmpty() || enText.isEmpty() ? arText : enText).replaceAll("\\s+", " ");
         t.year = s(o, "year");
         t.stars = s(o, "stars");
+        t.language = s(o, "language_lighttigerNb");
         t.series = "2".equals(s(o, "kind"));
         t.season = number(s(o, "season"));
         t.episode = number(s(o, "episodeNummer"));
